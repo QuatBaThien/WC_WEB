@@ -1,0 +1,198 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --bg-deep: #03040c;
+}
+
+body {
+  background-color: var(--bg-deep);
+  /* Sân vận động mờ chìm làm hình nền */
+  background-image: 
+    linear-gradient(to bottom, rgba(3, 4, 12, 0.85) 0%, rgba(3, 4, 12, 0.95) 100%),
+    radial-gradient(circle at 50% 30%, rgba(0, 245, 160, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 10% 80%, rgba(56, 189, 248, 0.15) 0%, transparent 50%);
+  background-attachment: fixed;
+  color: #f8fafc;
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ffd700;
+}
+
+/* Title gradients */
+.wc-title {
+  background: linear-gradient(135deg, #ffffff 0%, #ffd700 50%, #00f5a0 100%);
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+/* Welcome Overlay */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: #020308;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeOutWelcome 0.6s ease-in-out 2.4s forwards;
+}
+
+.welcome-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.welcome-cup {
+  font-size: 72px;
+  color: #ffd700;
+  filter: drop-shadow(0 0 25px rgba(253, 224, 71, 0.5));
+}
+
+.welcome-title {
+  font-family: var(--font-heading);
+  letter-spacing: 4px;
+  background: linear-gradient(to right, #ffffff, #ffd700, #00f5a0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-top: 10px;
+}
+
+.welcome-subtitle {
+  font-weight: 800;
+  letter-spacing: 2px;
+  font-size: 11px;
+}
+
+.soccer-loading .ball {
+  font-size: 24px;
+  animation: spinBall 1s linear infinite;
+}
+
+@keyframes spinBall {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeOutWelcome {
+  from { opacity: 1; visibility: visible; }
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* Antd Grid matches override */
+.matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+
+@media (max-width: 768px) {
+  .matches-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Flag zooms */
+.flag-img {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.flag-img:hover {
+  transform: scale(1.15);
+}
+
+/* Antd Table Dark custom styles overrides */
+.wc-antd-table {
+  background: transparent !important;
+}
+
+.wc-antd-table .ant-table {
+  background: transparent !important;
+  color: #cbd5e1 !important;
+}
+
+.wc-antd-table .ant-table-thead > tr > th {
+  background: rgba(0, 0, 0, 0.25) !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.wc-antd-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.wc-antd-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Table Row expanded details background */
+.wc-antd-table .ant-table-expanded-row > td {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Highlight current row */
+.antd-current-row td {
+  border-top: 1px solid rgba(253, 224, 71, 0.2) !important;
+  border-bottom: 1px solid rgba(253, 224, 71, 0.2) !important;
+  background: rgba(253, 224, 71, 0.03) !important;
+}
+
+/* Hero Banner hover subtle animation */
+.hero-banner-container {
+  background-size: cover;
+  transition: background-size 0.5s ease;
+}
+
+.hero-banner-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(to right, #ffd700, #00f5a0);
+}
+
+/* Rotate slow icon */
+.animate-spin-slow {
+  animation: spinSlow 8s linear infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Glassmorphism custom cards */
+.glass-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 245, 160, 0.06) !important;
+}
