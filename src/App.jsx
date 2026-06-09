@@ -262,10 +262,18 @@ export default function App() {
   };
 
   // --- USER AUTHENTICATION ---
-  const handleLoginSubmit = (values) => {
-    const rawVal = values.ma_user.trim().toUpperCase();
-    if (!rawVal) return;
+  /**
+   * handleLoginSubmit — Xác thực mật khẩu qua Google Sheets.
+   * Lần đầu đăng nhập: auto pass và lưu mật khẩu vào sheet.
+   * Lần sau: kiểm tra mật khẩu trước khi cho vào.
+   * Trả về { success, isFirstTime, error } để LoginModal hiển thị lỗi nếu cần.
+   */
+  const handleLoginSubmit = async (values) => {
+    const rawVal = (values.ma_user || '').trim().toUpperCase();
+    const password = (values.password || '').trim();
+    if (!rawVal || !password) return { success: false, error: 'Vui lòng điền đầy đủ thông tin!' };
 
+    // ADMIN bypass — không cần kiểm tra mật khẩu qua sheet
     if (rawVal === 'ADMIN_WC') {
       setIsAdmin(true);
       setCurrentUserId('ADMIN_WC');
@@ -275,8 +283,71 @@ export default function App() {
         }
         return prev;
       });
-      alert('Đăng nhập thành công với vai trò Admin!');
+      setShowLoginModal(false);
+      return { success: true };
+    }
+
+    // Gọi back-end để kiểm tra / đăng ký tài khoản
+    if (sheetUrl) {
+      try {
+        const response = await fetch(sheetUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'checkAccount',
+            ma_user: rawVal,
+            password,
+            ip: userIp,
+            timestamp: new Date().toISOString()
+          })
+        });
+
+        // no-cors => response.type === 'opaque', không đọc được body.
+        // Dùng endpoint GET để lấy kết quả sau khi POST xong.
+        // Delay nhỏ rồi gọi GET verify:
+        await new Promise(r => setTimeout(r, 800));
+
+        const verifyRes = await fetch(
+          `${sheetUrl}?action=verifyAccount&ma_user=${encodeURIComponent(rawVal)}&password=${encodeURIComponent(password)}&t=${Date.now()}`
+        );
+        if (!verifyRes.ok) throw new Error('Lỗi kết nối server!');
+        const verifyData = await verifyRes.json();
+
+        if (verifyData.success) {
+          setIsAdmin(false);
+          setCurrentUserId(rawVal);
+          setPlayers(prev => {
+            if (!prev.some(p => p.id === rawVal)) {
+              return [...prev, { id: rawVal, predictions: {}, ip: userIp, lastUpdated: new Date().toISOString() }];
+            }
+            return prev;
+          });
+          setShowLoginModal(false);
+          if (verifyData.isFirstTime) {
+            alert(`🎉 Chào mừng ${rawVal}! Mật khẩu của bạn đã được lưu. Hãy nhớ cho lần sau!`);
+          }
+          return { success: true, isFirstTime: verifyData.isFirstTime };
+        } else {
+          return { success: false, error: verifyData.error || 'Mật khẩu không đúng. Vui lòng thử lại!' };
+        }
+      } catch (err) {
+        console.error('Auth error:', err);
+        // Fallback: nếu không kết nối được sheet, cho phép vào (offline mode)
+        setIsAdmin(false);
+        setCurrentUserId(rawVal);
+        setPlayers(prev => {
+          if (!prev.some(p => p.id === rawVal)) {
+            return [...prev, { id: rawVal, predictions: {}, ip: userIp, lastUpdated: new Date().toISOString() }];
+          }
+          return prev;
+        });
+        setShowLoginModal(false);
+        alert('⚠️ Không thể kết nối server để xác thực. Đăng nhập ở chế độ offline.');
+        return { success: true };
+      }
     } else {
+      // Không có sheet URL — đăng nhập offline không xác thực mật khẩu
       setIsAdmin(false);
       setCurrentUserId(rawVal);
       setPlayers(prev => {
@@ -285,8 +356,9 @@ export default function App() {
         }
         return prev;
       });
+      setShowLoginModal(false);
+      return { success: true };
     }
-    setShowLoginModal(false);
   };
 
   const handleLogout = () => {
