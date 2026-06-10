@@ -661,6 +661,51 @@ export default function App() {
     return new Date() > new Date('2026-06-12T02:00:00');
   };
 
+  /**
+   * handleCopyPredictions — Copy dự đoán của người khác sang currentUser.
+   * Chỉ copy những trận CHƯA bị khóa (chưa diễn ra).
+   * Trận đã diễn ra giữ nguyên dự đoán cũ của currentUser.
+   */
+  const handleCopyPredictions = (targetPlayerId) => {
+    if (!currentUserId || currentUserId === targetPlayerId) return;
+
+    const targetPlayer = players.find(p => p.id === targetPlayerId);
+    if (!targetPlayer) return;
+
+    setPlayers(prev => prev.map(p => {
+      if (p.id !== currentUserId) return p;
+
+      const newPredictions = { ...p.predictions };
+
+      matches.forEach(match => {
+        // Xác định trạng thái khóa (giống isMatchLocked)
+        let locked;
+        if (lockedMatches[match.id] !== undefined) {
+          locked = lockedMatches[match.id];
+        } else {
+          locked = new Date() > new Date(match.date);
+        }
+
+        // Chỉ copy nếu trận CHƯA bị khóa
+        if (!locked) {
+          const targetPred = targetPlayer.predictions[match.id];
+          if (targetPred) {
+            newPredictions[match.id] = targetPred;
+          }
+          // Nếu target chưa đoán trận này → giữ nguyên dự đoán hiện tại của user
+        }
+      });
+
+      return {
+        ...p,
+        predictions: newPredictions,
+        lastUpdated: new Date().toISOString(),
+      };
+    }));
+
+    setHasDraftChanges(true);
+  };
+
   // Các tab antd
   const tabItems = [
     { key: 'group', label: 'Vòng Bảng' },
@@ -804,6 +849,8 @@ export default function App() {
                   matches={matches}
                   currentUserId={currentUserId}
                   penaltiesConfig={penaltiesConfig}
+                  lockedMatches={lockedMatches}
+                  onCopyPredictions={handleCopyPredictions}
                 />
 
                 {isAdmin && (
