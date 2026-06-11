@@ -316,25 +316,30 @@ export default function Leaderboard({
       width: 110,
       render: (_, record) => {
         const currentUserPlayer = players.find(p => p.id === currentUserId);
-        const followingId = currentUserPlayer?.predictions?.following;
+        const currentUserFollowingId = currentUserPlayer?.predictions?.following;
+        const recordFollowingId = record.predictions?.following;
         
         const isCurrent = record.id === currentUserId;
         const canFollow = !!currentUserId && currentUserId !== 'ADMIN_WC';
 
         if (!canFollow) return null;
 
+        // If this record has a leader already, show their leader's ID
+        if (recordFollowingId) {
+          return (
+            <Tag color="gold" style={{ margin: 0, fontWeight: 'bold', fontSize: 9 }}>
+              Theo: {recordFollowingId}
+            </Tag>
+          );
+        }
+
+        // If this is the logged-in user themselves (and has no leader, since the check above didn't fire)
         if (isCurrent) {
-          if (followingId) {
-            return (
-              <Tag color="gold" style={{ margin: 0, fontWeight: 'bold', fontSize: 9 }}>
-                Theo: {followingId}
-              </Tag>
-            );
-          }
           return <Text style={{ color: '#64748b', fontSize: 11 }}>—</Text>;
         }
 
-        if (followingId === record.id) {
+        // If the current user is following this record
+        if (currentUserFollowingId === record.id) {
           return (
             <Tag color="success" style={{ margin: 0, fontWeight: 'bold', fontSize: 9 }}>
               Đang theo dõi

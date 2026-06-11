@@ -1116,7 +1116,7 @@ export default function App() {
     { key: 'qf', label: 'Tứ Kết' },
     { key: 'sf', label: 'Bán Kết' },
     { key: 'finals', label: 'Chung Kết & Tranh Hạng 3' },
-    { key: 'champion', label: '🏆 Dự đoán Vô Địch' }
+    // { key: 'champion', label: '🏆 Dự đoán Vô Địch' }
   ];
 
   return (
