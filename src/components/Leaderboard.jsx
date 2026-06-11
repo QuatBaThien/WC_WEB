@@ -3,7 +3,7 @@ import { Table, Typography, Card, Badge, Space, Tag, Row, Col, Button, Modal, To
 import {
   TrophyOutlined, TrophyFilled, InfoCircleOutlined,
   CheckCircleOutlined, CloseCircleOutlined,
-  CopyOutlined, CheckOutlined
+  CopyOutlined, CheckOutlined, CrownOutlined
 } from '@ant-design/icons';
 import { TEAMS, CHAMPION_OPTIONS } from '../data/wcData';
 
@@ -15,7 +15,8 @@ export default function Leaderboard({
   currentUserId,
   penaltiesConfig,
   onCopyPredictions,   // (targetPlayerId) => void
-  lockedMatches = {}   // để tính số trận chưa khóa có thể copy
+  lockedMatches = {},  // để tính số trận chưa khóa có thể copy
+  onFollowLeader       // NEW prop
 }) {
 
   const [copyingId, setCopyingId]       = useState(null); // đang xử lý
@@ -80,6 +81,64 @@ export default function Leaderboard({
         setCopyingId(null);
         setCopiedId(targetPlayer.id);
         setTimeout(() => setCopiedId(null), 3000);
+      },
+    });
+  };
+
+  // ── Xử lý click Chọn Minh Chủ ─────────────────────────────────
+  const handleFollowClick = (targetPlayer) => {
+    const currentUserPlayer = players.find(p => p.id === currentUserId);
+    const currentFollowingId = currentUserPlayer?.predictions?.following;
+
+    const copyable = countCopyableMatches(targetPlayer.predictions);
+
+    let title, content;
+    if (currentFollowingId) {
+      title = (
+        <span style={{ color: '#ffd700', fontWeight: 700 }}>
+          Thay đổi Minh Chủ?
+        </span>
+      );
+      content = (
+        <div style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7 }}>
+          Bạn đang theo dõi Minh chủ <span style={{ color: '#ffd700', fontWeight: 700 }}>{currentFollowingId}</span>.<br />
+          Bạn có chắc chắn muốn đổi sang Minh chủ mới <span style={{ color: '#00f5a0', fontWeight: 700 }}>{targetPlayer.id}</span>?<br />
+          Toàn bộ <span style={{ color: '#00f5a0', fontWeight: 700 }}>{copyable} dự đoán chưa diễn ra</span> của {targetPlayer.id} sẽ được copy đè và lưu ngay lập tức.
+        </div>
+      );
+    } else {
+      title = (
+        <span style={{ color: '#ffd700', fontWeight: 700 }}>
+          Chọn Minh Chủ?
+        </span>
+      );
+      content = (
+        <div style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7 }}>
+          Bạn muốn chọn <span style={{ color: '#ffd700', fontWeight: 700 }}>{targetPlayer.id}</span> làm Minh Chủ?<br />
+          Toàn bộ <span style={{ color: '#00f5a0', fontWeight: 700 }}>{copyable} dự đoán chưa diễn ra</span> của {targetPlayer.id} sẽ được copy sang tài khoản của bạn và lưu ngay lập tức.<br />
+          Về sau, khi Minh Chủ cập nhật dự đoán, tài khoản của bạn cũng sẽ tự động đồng bộ theo.
+        </div>
+      );
+    }
+
+    Modal.confirm({
+      title,
+      content,
+      okText: currentFollowingId ? 'Đổi Minh Chủ' : 'Chọn Minh Chủ',
+      cancelText: 'Huỷ',
+      okButtonProps: {
+        style: {
+          background: 'linear-gradient(135deg, #ffd700, #d97706)',
+          borderColor: '#ffd700',
+          color: '#000',
+          fontWeight: 700,
+        },
+      },
+      centered: true,
+      onOk: async () => {
+        if (onFollowLeader) {
+          await onFollowLeader(targetPlayer.id);
+        }
       },
     });
   };
@@ -166,16 +225,23 @@ export default function Leaderboard({
       key: 'id',
       render: (text) => {
         const isCurrent = text === currentUserId;
+        const followers = players.filter(p => p.predictions?.following === text);
+        const isMinhChu = followers.length > 0;
+
         return (
           <Space size={6} wrap={false}>
-            <Text strong style={{ color: isCurrent ? '#ffd700' : '#f8fafc', fontWeight: 700, fontSize: 12 }}>
-              {text}
+            {isMinhChu && <CrownOutlined style={{ color: '#ffd700', fontSize: 13 }} />}
+            <Text strong style={{ color: isCurrent ? '#ffd700' : isMinhChu ? '#fcd34d' : '#f8fafc', fontWeight: 700, fontSize: 12 }}>
+              {isMinhChu ? `${text}` : text}
             </Text>
             {isCurrent && (
               <Badge
                 count="BẠN"
                 style={{ backgroundColor: '#ffd700', color: '#000', fontWeight: 'bold', fontSize: 9 }}
               />
+            )}
+            {isMinhChu && (
+              <span style={{ color: '#64748b', fontSize: 10 }}>({followers.length} follow)</span>
             )}
           </Space>
         );
@@ -240,6 +306,64 @@ export default function Leaderboard({
               {isCopied ? '✓' : copyable > 0 ? copyable : '—'}
             </Button>
           </Tooltip>
+        );
+      }
+    },
+    {
+      title: 'Minh Chủ',
+      key: 'minh_chu',
+      align: 'center',
+      width: 110,
+      render: (_, record) => {
+        const currentUserPlayer = players.find(p => p.id === currentUserId);
+        const followingId = currentUserPlayer?.predictions?.following;
+        
+        const isCurrent = record.id === currentUserId;
+        const canFollow = !!currentUserId && currentUserId !== 'ADMIN_WC';
+
+        if (!canFollow) return null;
+
+        if (isCurrent) {
+          if (followingId) {
+            return (
+              <Tag color="gold" style={{ margin: 0, fontWeight: 'bold', fontSize: 9 }}>
+                Theo: {followingId}
+              </Tag>
+            );
+          }
+          return <Text style={{ color: '#64748b', fontSize: 11 }}>—</Text>;
+        }
+
+        if (followingId === record.id) {
+          return (
+            <Tag color="success" style={{ margin: 0, fontWeight: 'bold', fontSize: 9 }}>
+              Đang theo dõi
+            </Tag>
+          );
+        }
+
+        if (record.id === 'ADMIN_WC') return null;
+
+        return (
+          <Button
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleFollowClick(record);
+            }}
+            style={{
+              height: 22,
+              fontSize: 10,
+              fontWeight: 700,
+              borderRadius: 6,
+              background: 'linear-gradient(135deg, #ffd700, #d97706)',
+              borderColor: '#ffd700',
+              color: '#000',
+              padding: '0 8px',
+            }}
+          >
+            Chọn
+          </Button>
         );
       }
     },

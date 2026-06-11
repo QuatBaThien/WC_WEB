@@ -12,6 +12,63 @@ import { INITIAL_MATCHES, TEAMS, CHAMPION_OPTIONS } from './data/wcData';
 const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
 
+// --- HELPER FUNCTION: ALIGN FOLLOWERS' PREDICTIONS WITH THEIR LEADERS ---
+const alignFollowersPredictions = (playersList, matchesList, locks) => {
+  if (!playersList || playersList.length === 0) return [];
+
+  const checkLocked = (matchId) => {
+    if (locks && locks[matchId] !== undefined) return locks[matchId];
+    const match = matchesList.find(m => m.id === matchId);
+    if (!match) return false;
+    return new Date() > new Date(match.date);
+  };
+
+  return playersList.map(player => {
+    const following = player.predictions?.following;
+    if (!following) return player;
+    
+    // Find leader
+    const leader = playersList.find(p => p.id === following);
+    if (!leader) return player;
+
+    const alignedPreds = { ...player.predictions };
+
+    // Align match predictions
+    matchesList.forEach(match => {
+      if (!checkLocked(match.id)) {
+        const leaderPred = leader.predictions[match.id];
+        if (leaderPred !== undefined) {
+          alignedPreds[match.id] = leaderPred;
+        } else {
+          delete alignedPreds[match.id];
+        }
+      }
+    });
+
+    // Align champion predictions
+    let champLocked = locks?.['CONFIG_LOCK_CHAMPION'];
+    if (champLocked === undefined) {
+      champLocked = new Date() > new Date('2026-06-12T02:00:00');
+    }
+    if (!champLocked) {
+      CHAMPION_OPTIONS.forEach(opt => {
+        const key = `CHAMP_${opt.code}`;
+        const leaderPred = leader.predictions[key];
+        if (leaderPred !== undefined) {
+          alignedPreds[key] = leaderPred;
+        } else {
+          delete alignedPreds[key];
+        }
+      });
+    }
+
+    return {
+      ...player,
+      predictions: alignedPreds
+    };
+  });
+};
+
 export default function App() {
   // --- STATE ---
   const [matches, setMatches] = useState(() => {
@@ -48,7 +105,32 @@ export default function App() {
 
   const [players, setPlayers] = useState(() => {
     const localPlayers = localStorage.getItem('wc_players');
-    return localPlayers ? JSON.parse(localPlayers) : [];
+    const parsed = localPlayers ? JSON.parse(localPlayers) : [];
+    
+    const localLocks = localStorage.getItem('wc_locked_matches');
+    const locks = localLocks ? JSON.parse(localLocks) : {};
+    
+    const localResults = localStorage.getItem('wc_matches_results');
+    const results = localResults ? JSON.parse(localResults) : {};
+    
+    const localKnockoutTeams = localStorage.getItem('wc_knockout_teams');
+    const koTeams = localKnockoutTeams ? JSON.parse(localKnockoutTeams) : {};
+
+    const baseMatches = INITIAL_MATCHES.map(m => {
+      const u = {
+        ...m,
+        result: results[m.id] !== undefined ? results[m.id] : m.result
+      };
+      if (m.stage !== 'group' && koTeams[m.id]) {
+        u.teamAName = koTeams[m.id].teamAName || m.teamAName;
+        u.teamBName = koTeams[m.id].teamBName || m.teamBName;
+        u.teamA = koTeams[m.id].teamA || m.teamA;
+        u.teamB = koTeams[m.id].teamB || m.teamB;
+      }
+      return u;
+    });
+
+    return alignFollowersPredictions(parsed, baseMatches, locks);
   });
 
   const [currentUserId, setCurrentUserId] = useState(() => {
@@ -186,19 +268,16 @@ export default function App() {
       if (!response.ok) throw new Error('Response error');
       const data = await response.json();
       
-      if (data.players) {
-        setPlayers(data.players);
-      }
-      
+      let resolvedMatches = [...matches];
       if (data.matchesResults) {
-        setMatches(prev => prev.map(m => ({
+        resolvedMatches = resolvedMatches.map(m => ({
           ...m,
           result: data.matchesResults[m.id] !== undefined ? data.matchesResults[m.id] : m.result
-        })));
+        }));
       }
 
       if (data.knockoutTeams) {
-        setMatches(prev => prev.map(m => {
+        resolvedMatches = resolvedMatches.map(m => {
           if (m.stage !== 'group' && data.knockoutTeams[m.id]) {
             return {
               ...m,
@@ -209,11 +288,17 @@ export default function App() {
             };
           }
           return m;
-        }));
+        });
       }
 
+      if (data.matchesResults || data.knockoutTeams) {
+        setMatches(resolvedMatches);
+      }
+
+      let resolvedLocks = { ...lockedMatches };
       if (data.lockedMatches) {
-        setLockedMatches(data.lockedMatches);
+        resolvedLocks = data.lockedMatches;
+        setLockedMatches(resolvedLocks);
 
         // Khôi phục penaltiesConfig từ lockedMatches
         const groupPen = data.lockedMatches['CONFIG_PENALTY_group'];
@@ -235,6 +320,11 @@ export default function App() {
         });
       }
 
+      if (data.players) {
+        const aligned = alignFollowersPredictions(data.players, resolvedMatches, resolvedLocks);
+        setPlayers(aligned);
+      }
+
       setSheetConnected(true);
     } catch (err) {
       console.error(err);
@@ -244,7 +334,7 @@ export default function App() {
     }
   };
 
-  const postToSheet = async (payload) => {
+  const rawPostToSheet = async (payload) => {
     if (!sheetUrl) return false;
     try {
       await fetch(sheetUrl, {
@@ -253,12 +343,19 @@ export default function App() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
       });
-      setTimeout(() => syncWithSheet(), 1000);
       return true;
     } catch (e) {
       console.error(e);
       return false;
     }
+  };
+
+  const postToSheet = async (payload) => {
+    const success = await rawPostToSheet(payload);
+    if (success) {
+      setTimeout(() => syncWithSheet(), 1000);
+    }
+    return success;
   };
 
   // --- USER AUTHENTICATION ---
@@ -367,30 +464,104 @@ export default function App() {
     setShowLoginModal(true);
   };
 
+  const checkAndUnfollowLeader = (onConfirm, actionName = 'thay đổi dự đoán') => {
+    const activePlayer = players.find(p => p.id === currentUserId);
+    const following = activePlayer?.predictions?.following;
+    if (following) {
+      Modal.confirm({
+        title: (
+          <span style={{ color: '#ff4d4f', fontWeight: 700 }}>
+            Hủy theo dõi Minh Chủ?
+          </span>
+        ),
+        content: (
+          <div style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.7 }}>
+            Bạn đang theo dõi Minh chủ <span style={{ color: '#ffd700', fontWeight: 700 }}>{following}</span>.<br />
+            Nếu tự ý {actionName}, bạn sẽ <b>tự động hủy theo dõi</b> Minh chủ này và <b>lưu dự đoán mới</b>.<br /><br />
+            Bạn có đồng ý không?
+          </div>
+        ),
+        okText: 'Đồng ý & Lưu',
+        cancelText: 'Hủy',
+        okButtonProps: {
+          style: {
+            background: 'linear-gradient(135deg, #ff4d4f, #d32f2f)',
+            borderColor: '#ff4d4f',
+            color: '#fff',
+            fontWeight: 700,
+          },
+        },
+        centered: true,
+        onOk: async () => {
+          await onConfirm();
+        }
+      });
+      return true;
+    }
+    return false;
+  };
+
   const handlePredict = (matchId, choice) => {
     if (!currentUserId) {
       setShowLoginModal(true);
       return;
     }
 
-    const updatedPlayers = players.map(p => {
-      if (p.id === currentUserId) {
-        const preds = {
-          ...p.predictions,
-          [matchId]: p.predictions[matchId] === choice ? null : choice
-        };
-        return {
-          ...p,
-          predictions: preds,
-          ip: userIp,
-          lastUpdated: new Date().toISOString()
-        };
-      }
-      return p;
-    });
+    const activePlayer = players.find(p => p.id === currentUserId);
+    const following = activePlayer?.predictions?.following;
 
-    setPlayers(updatedPlayers);
-    setHasDraftChanges(true);
+    const performPredict = async (shouldUnfollow = false) => {
+      let finalPredictions = {};
+
+      const updatedPlayers = players.map(p => {
+        if (p.id === currentUserId) {
+          const preds = {
+            ...p.predictions,
+            [matchId]: p.predictions[matchId] === choice ? null : choice
+          };
+          if (shouldUnfollow) {
+            delete preds.following;
+          }
+          finalPredictions = preds;
+          return {
+            ...p,
+            predictions: preds,
+            ip: userIp,
+            lastUpdated: new Date().toISOString()
+          };
+        }
+        return p;
+      });
+
+      setPlayers(updatedPlayers);
+
+      if (shouldUnfollow) {
+        setSaveLoading(true);
+        const success = await rawPostToSheet({
+          action: 'submitPrediction',
+          ma_user: currentUserId,
+          ip: userIp,
+          predictions: finalPredictions,
+          timestamp: new Date().toISOString()
+        });
+        setSaveLoading(false);
+
+        if (success) {
+          alert('Đã hủy theo dõi Minh Chủ và lưu dự đoán mới của bạn thành công!');
+          syncWithSheet();
+        } else {
+          alert('Không thể lưu dự đoán lên Google Sheets. Vui lòng thử lại!');
+        }
+      } else {
+        setHasDraftChanges(true);
+      }
+    };
+
+    if (following) {
+      checkAndUnfollowLeader(() => performPredict(true), 'thay đổi dự đoán');
+    } else {
+      performPredict(false);
+    }
   };
 
   const handlePredictChamp = (teamCode, wager) => {
@@ -399,24 +570,61 @@ export default function App() {
       return;
     }
 
-    const updatedPlayers = players.map(p => {
-      if (p.id === currentUserId) {
-        const preds = {
-          ...p.predictions,
-          [`CHAMP_${teamCode}`]: wager === 0 ? null : wager
-        };
-        return {
-          ...p,
-          predictions: preds,
-          ip: userIp,
-          lastUpdated: new Date().toISOString()
-        };
-      }
-      return p;
-    });
+    const activePlayer = players.find(p => p.id === currentUserId);
+    const following = activePlayer?.predictions?.following;
 
-    setPlayers(updatedPlayers);
-    setHasDraftChanges(true);
+    const performPredictChamp = async (shouldUnfollow = false) => {
+      let finalPredictions = {};
+
+      const updatedPlayers = players.map(p => {
+        if (p.id === currentUserId) {
+          const preds = {
+            ...p.predictions,
+            [`CHAMP_${teamCode}`]: wager === 0 ? null : wager
+          };
+          if (shouldUnfollow) {
+            delete preds.following;
+          }
+          finalPredictions = preds;
+          return {
+            ...p,
+            predictions: preds,
+            ip: userIp,
+            lastUpdated: new Date().toISOString()
+          };
+        }
+        return p;
+      });
+
+      setPlayers(updatedPlayers);
+
+      if (shouldUnfollow) {
+        setSaveLoading(true);
+        const success = await rawPostToSheet({
+          action: 'submitPrediction',
+          ma_user: currentUserId,
+          ip: userIp,
+          predictions: finalPredictions,
+          timestamp: new Date().toISOString()
+        });
+        setSaveLoading(false);
+
+        if (success) {
+          alert('Đã hủy theo dõi Minh Chủ và lưu dự đoán cược vô địch của bạn thành công!');
+          syncWithSheet();
+        } else {
+          alert('Không thể lưu dự đoán lên Google Sheets. Vui lòng thử lại!');
+        }
+      } else {
+        setHasDraftChanges(true);
+      }
+    };
+
+    if (following) {
+      checkAndUnfollowLeader(() => performPredictChamp(true), 'thay đổi dự đoán Vô Địch');
+    } else {
+      performPredictChamp(false);
+    }
   };
 
   const handleSavePredictions = async () => {
@@ -427,19 +635,74 @@ export default function App() {
     setSaveLoading(true);
     let success = true;
     if (sheetUrl) {
-      success = await postToSheet({
+      success = await rawPostToSheet({
         action: 'submitPrediction',
         ma_user: currentUserId,
         ip: userIp,
         predictions: activePlayer.predictions,
         timestamp: new Date().toISOString()
       });
+
+      if (success) {
+        // Find followers
+        const followers = players.filter(p => p.predictions?.following === currentUserId);
+        if (followers.length > 0) {
+          for (const follower of followers) {
+            const updatedFollowerPreds = { ...follower.predictions };
+            
+            // Align match predictions
+            matches.forEach(match => {
+              let locked = lockedMatches[match.id] !== undefined 
+                ? lockedMatches[match.id] 
+                : new Date() > new Date(match.date);
+
+              if (!locked) {
+                const leaderPred = activePlayer.predictions[match.id];
+                if (leaderPred !== undefined) {
+                  updatedFollowerPreds[match.id] = leaderPred;
+                } else {
+                  delete updatedFollowerPreds[match.id];
+                }
+              }
+            });
+
+            // Align champion predictions
+            let champLocked = lockedMatches['CONFIG_LOCK_CHAMPION'];
+            if (champLocked === undefined) {
+              champLocked = new Date() > new Date('2026-06-12T02:00:00');
+            }
+            if (!champLocked) {
+              CHAMPION_OPTIONS.forEach(opt => {
+                const key = `CHAMP_${opt.code}`;
+                const leaderPred = activePlayer.predictions[key];
+                if (leaderPred !== undefined) {
+                  updatedFollowerPreds[key] = leaderPred;
+                } else {
+                  delete updatedFollowerPreds[key];
+                }
+              });
+            }
+
+            // Post for follower
+            await rawPostToSheet({
+              action: 'submitPrediction',
+              ma_user: follower.id,
+              ip: 'System-Sync',
+              predictions: updatedFollowerPreds,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+        
+        // Wait 1 second and sync to update local states
+        setTimeout(() => syncWithSheet(), 1000);
+      }
     }
 
     setSaveLoading(false);
     if (success) {
       setHasDraftChanges(false);
-      alert('Đã gửi tất cả dự đoán của bạn lên Google Sheets thành công!');
+      alert('Đã gửi tất cả dự đoán của bạn (và cập nhật cho người theo dõi) lên Google Sheets thành công!');
     } else {
       alert('Lỗi gửi dự đoán lên Google Sheets. Vui lòng kiểm tra lại kết nối!');
     }
@@ -672,38 +935,177 @@ export default function App() {
     const targetPlayer = players.find(p => p.id === targetPlayerId);
     if (!targetPlayer) return;
 
-    setPlayers(prev => prev.map(p => {
-      if (p.id !== currentUserId) return p;
+    const activePlayer = players.find(p => p.id === currentUserId);
+    const following = activePlayer?.predictions?.following;
 
-      const newPredictions = { ...p.predictions };
+    const performCopy = async (shouldUnfollow = false) => {
+      let finalPredictions = {};
 
-      matches.forEach(match => {
-        // Xác định trạng thái khóa (giống isMatchLocked)
-        let locked;
-        if (lockedMatches[match.id] !== undefined) {
-          locked = lockedMatches[match.id];
-        } else {
-          locked = new Date() > new Date(match.date);
+      const updatedPlayers = players.map(p => {
+        if (p.id !== currentUserId) return p;
+
+        const newPredictions = { ...p.predictions };
+        if (shouldUnfollow) {
+          delete newPredictions.following;
         }
 
-        // Chỉ copy nếu trận CHƯA bị khóa
-        if (!locked) {
-          const targetPred = targetPlayer.predictions[match.id];
-          if (targetPred) {
-            newPredictions[match.id] = targetPred;
+        matches.forEach(match => {
+          let locked = lockedMatches[match.id] !== undefined 
+            ? lockedMatches[match.id] 
+            : new Date() > new Date(match.date);
+
+          if (!locked) {
+            const targetPred = targetPlayer.predictions[match.id];
+            if (targetPred) {
+              newPredictions[match.id] = targetPred;
+            }
           }
-          // Nếu target chưa đoán trận này → giữ nguyên dự đoán hiện tại của user
-        }
+        });
+
+        finalPredictions = newPredictions;
+        return {
+          ...p,
+          predictions: newPredictions,
+          lastUpdated: new Date().toISOString(),
+        };
       });
 
-      return {
-        ...p,
-        predictions: newPredictions,
-        lastUpdated: new Date().toISOString(),
-      };
-    }));
+      setPlayers(updatedPlayers);
 
-    setHasDraftChanges(true);
+      if (shouldUnfollow) {
+        setSaveLoading(true);
+        const success = await rawPostToSheet({
+          action: 'submitPrediction',
+          ma_user: currentUserId,
+          ip: userIp,
+          predictions: finalPredictions,
+          timestamp: new Date().toISOString()
+        });
+        setSaveLoading(false);
+
+        if (success) {
+          alert('Đã hủy theo dõi Minh Chủ cũ, copy và lưu dự đoán mới của bạn thành công!');
+          syncWithSheet();
+        } else {
+          alert('Không thể lưu dự đoán lên Google Sheets. Vui lòng thử lại!');
+        }
+      } else {
+        setHasDraftChanges(true);
+      }
+    };
+
+    if (following) {
+      Modal.confirm({
+        title: (
+          <span style={{ color: '#ff4d4f', fontWeight: 700 }}>
+            Hủy theo dõi Minh Chủ?
+          </span>
+        ),
+        content: (
+          <div style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.7 }}>
+            Bạn đang theo dõi Minh chủ <span style={{ color: '#ffd700', fontWeight: 700 }}>{following}</span>.<br />
+            Nếu copy dự đoán từ <span style={{ color: '#38bdf8', fontWeight: 700 }}>{targetPlayerId}</span>, bạn sẽ <b>tự động hủy theo dõi</b> Minh chủ cũ và <b>lưu dự đoán mới</b>.<br /><br />
+            Bạn có đồng ý không?
+          </div>
+        ),
+        okText: 'Đồng ý & Copy',
+        cancelText: 'Hủy',
+        okButtonProps: {
+          style: {
+            background: 'linear-gradient(135deg, #ff4d4f, #d32f2f)',
+            borderColor: '#ff4d4f',
+            color: '#fff',
+            fontWeight: 700,
+          },
+        },
+        centered: true,
+        onOk: () => {
+          performCopy(true);
+        }
+      });
+    } else {
+      performCopy(false);
+    }
+  };
+
+  const handleFollowLeader = async (targetLeaderId) => {
+    if (!currentUserId || currentUserId === targetLeaderId) return;
+
+    const leader = players.find(p => p.id === targetLeaderId);
+    if (!leader) return;
+
+    const activePlayer = players.find(p => p.id === currentUserId);
+    if (!activePlayer) return;
+
+    const newPredictions = { ...activePlayer.predictions };
+    newPredictions.following = targetLeaderId;
+
+    // Copy unlocked matches
+    matches.forEach(match => {
+      let locked = lockedMatches[match.id] !== undefined 
+        ? lockedMatches[match.id] 
+        : new Date() > new Date(match.date);
+
+      if (!locked) {
+        const leaderPred = leader.predictions[match.id];
+        if (leaderPred !== undefined) {
+          newPredictions[match.id] = leaderPred;
+        } else {
+          delete newPredictions[match.id];
+        }
+      }
+    });
+
+    // Copy champion predictions if not locked
+    let champLocked = lockedMatches['CONFIG_LOCK_CHAMPION'];
+    if (champLocked === undefined) {
+      champLocked = new Date() > new Date('2026-06-12T02:00:00');
+    }
+    if (!champLocked) {
+      CHAMPION_OPTIONS.forEach(opt => {
+        const key = `CHAMP_${opt.code}`;
+        const leaderPred = leader.predictions[key];
+        if (leaderPred !== undefined) {
+          newPredictions[key] = leaderPred;
+        } else {
+          delete newPredictions[key];
+        }
+      });
+    }
+
+    // Update state
+    const updatedPlayers = players.map(p => {
+      if (p.id === currentUserId) {
+        return {
+          ...p,
+          predictions: newPredictions,
+          ip: userIp,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+      return p;
+    });
+
+    setPlayers(updatedPlayers);
+    setHasDraftChanges(false);
+
+    // Save immediately
+    setSaveLoading(true);
+    const success = await rawPostToSheet({
+      action: 'submitPrediction',
+      ma_user: currentUserId,
+      ip: userIp,
+      predictions: newPredictions,
+      timestamp: new Date().toISOString()
+    });
+    setSaveLoading(false);
+
+    if (success) {
+      alert(`Đã chọn ${targetLeaderId} làm Minh Chủ và tự động đồng bộ tất cả dự đoán chưa đá thành công!`);
+      syncWithSheet();
+    } else {
+      alert('Lỗi lưu cấu hình Minh Chủ lên Google Sheets. Vui lòng thử lại!');
+    }
   };
 
   // Các tab antd
@@ -851,6 +1253,7 @@ export default function App() {
                   penaltiesConfig={penaltiesConfig}
                   lockedMatches={lockedMatches}
                   onCopyPredictions={handleCopyPredictions}
+                  onFollowLeader={handleFollowLeader}
                 />
 
                 {isAdmin && (
@@ -981,6 +1384,7 @@ export default function App() {
                             onSetResult={handleSetResult}
                             isLocked={isMatchLocked(match)}
                             penaltiesConfig={penaltiesConfig}
+                            players={players}
                           />
                         ))}
                       </div>
