@@ -176,7 +176,11 @@ export default function MatchCard({
         {/* VS Indicator */}
         <Col span={6}>
           <div className="flex flex-col items-center">
-            <span style={{ fontSize: '10px', color: '#64748b', letterSpacing: 2, fontWeight: 800 }}>VS</span>
+            {match.score ? (
+              <span style={{ fontSize: '16px', color: '#fff', fontWeight: 900, background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)' }}>{match.score}</span>
+            ) : (
+              <span style={{ fontSize: '10px', color: '#64748b', letterSpacing: 2, fontWeight: 800 }}>VS</span>
+            )}
           </div>
         </Col>
 

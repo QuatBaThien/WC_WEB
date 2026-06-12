@@ -300,6 +300,18 @@ export default function App() {
         resolvedLocks = data.lockedMatches;
         setLockedMatches(resolvedLocks);
 
+        // Khôi phục score từ MATCHES_SCORES
+        if (resolvedLocks['MATCHES_SCORES']) {
+          try {
+            const scores = JSON.parse(resolvedLocks['MATCHES_SCORES']);
+            resolvedMatches = resolvedMatches.map(m => {
+              if (scores[m.id]) return { ...m, score: scores[m.id] };
+              return m;
+            });
+            setMatches(resolvedMatches);
+          } catch(e) {}
+        }
+
         // Khôi phục penaltiesConfig từ lockedMatches
         const groupPen = data.lockedMatches['CONFIG_PENALTY_group'];
         const r32Pen = data.lockedMatches['CONFIG_PENALTY_r32'];
@@ -330,7 +342,7 @@ export default function App() {
       // --- AUTO SYNC API LOGIC ---
       const lastSyncTimeStr = resolvedLocks['LAST_API_SYNC_TIME'];
       const lastSyncTime = lastSyncTimeStr ? new Date(lastSyncTimeStr).getTime() : 0;
-      if (Date.now() - lastSyncTime >= 3600000) {
+      if (Date.now() - lastSyncTime >= 300000) {
         autoSyncApiResults(resolvedMatches, resolvedLocks, url);
       }
 
@@ -352,6 +364,13 @@ export default function App() {
       let updatedMatches = [...currentMatches];
       let hasChanges = false;
       
+      let scoresObj = {};
+      try {
+        if (currentLocks['MATCHES_SCORES']) {
+          scoresObj = JSON.parse(currentLocks['MATCHES_SCORES']);
+        }
+      } catch(e) {}
+      
       const API_TEAM_CODE_MAP = {
         "Mexico": "MEX", "South Africa": "RSA", "South Korea": "KOR", "Czech Republic": "CZE", 
         "Canada": "CAN", "Bosnia and Herzegovina": "BIH", "United States": "USA", "Paraguay": "PAR",
@@ -372,17 +391,31 @@ export default function App() {
         let matchChanged = false;
         const currentM = { ...updatedMatches[index] };
 
-        if (game.finished === "TRUE") {
-          const home = parseInt(game.home_score);
-          const away = parseInt(game.away_score);
-          let newResult = null;
-          if (home > away) newResult = 'A';
-          else if (home < away) newResult = 'B';
-          else newResult = 'D';
+        const homeScoreRaw = game.home_score;
+        const awayScoreRaw = game.away_score;
+        const hasScore = homeScoreRaw !== null && homeScoreRaw !== undefined && homeScoreRaw !== "" && homeScoreRaw !== "null";
+        
+        if (hasScore) {
+          const home = parseInt(homeScoreRaw);
+          const away = parseInt(awayScoreRaw);
+          const newScoreStr = `${home} - ${away}`;
           
-          if (currentM.result !== newResult) {
-            currentM.result = newResult;
+          if (scoresObj[currentM.id] !== newScoreStr || currentM.score !== newScoreStr) {
+            currentM.score = newScoreStr;
+            scoresObj[currentM.id] = newScoreStr;
             matchChanged = true;
+          }
+
+          if (game.finished === "TRUE") {
+            let newResult = null;
+            if (home > away) newResult = 'A';
+            else if (home < away) newResult = 'B';
+            else newResult = 'D';
+            
+            if (currentM.result !== newResult) {
+              currentM.result = newResult;
+              matchChanged = true;
+            }
           }
         }
         
@@ -443,7 +476,11 @@ export default function App() {
       }
       
       const newSyncTime = new Date().toISOString();
-      const updatedLocks = { ...currentLocks, 'LAST_API_SYNC_TIME': newSyncTime };
+      const updatedLocks = { 
+        ...currentLocks, 
+        'LAST_API_SYNC_TIME': newSyncTime,
+        'MATCHES_SCORES': JSON.stringify(scoresObj)
+      };
       setLockedMatches(updatedLocks);
       
       if (sheetUrlToUse) {
