@@ -326,11 +326,140 @@ export default function App() {
       }
 
       setSheetConnected(true);
+
+      // --- AUTO SYNC API LOGIC ---
+      const lastSyncTimeStr = resolvedLocks['LAST_API_SYNC_TIME'];
+      const lastSyncTime = lastSyncTimeStr ? new Date(lastSyncTimeStr).getTime() : 0;
+      if (Date.now() - lastSyncTime >= 3600000) {
+        autoSyncApiResults(resolvedMatches, resolvedLocks, url);
+      }
+
     } catch (err) {
       console.error(err);
       setSheetConnected(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const autoSyncApiResults = async (currentMatches, currentLocks, sheetUrlToUse) => {
+    try {
+      const res = await fetch('https://worldcup26.ir/get/games');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || !data.games) return;
+      
+      let updatedMatches = [...currentMatches];
+      let hasChanges = false;
+      
+      const API_TEAM_CODE_MAP = {
+        "Mexico": "MEX", "South Africa": "RSA", "South Korea": "KOR", "Czech Republic": "CZE", 
+        "Canada": "CAN", "Bosnia and Herzegovina": "BIH", "United States": "USA", "Paraguay": "PAR",
+        "Haiti": "HAI", "Scotland": "SCO", "Australia": "AUS", "Turkey": "TUR", "Brazil": "BRA",
+        "Morocco": "MAR", "Qatar": "QAT", "Switzerland": "SUI", "Ivory Coast": "CIV", "Ecuador": "ECU",
+        "Germany": "GER", "Curaçao": "CUW", "Netherlands": "NED", "Japan": "JPN", "Sweden": "SWE",
+        "Tunisia": "TUN", "Iran": "IRN", "New Zealand": "NZL", "Spain": "ESP", "Cape Verde": "CPV",
+        "Belgium": "BEL", "Egypt": "EGY", "Saudi Arabia": "KSA", "Uruguay": "URU", "France": "FRA",
+        "Senegal": "SEN", "Iraq": "IRQ", "Norway": "NOR", "Argentina": "ARG", "Algeria": "ALG",
+        "Austria": "AUT", "Jordan": "JOR", "Portugal": "POR", "Democratic Republic of the Congo": "COD",
+        "England": "ENG", "Croatia": "CRO", "Uzbekistan": "UZB", "Colombia": "COL", "Ghana": "GHA",
+        "Panama": "PAN"
+      };
+      
+      data.games.forEach((game, index) => {
+        if (index >= updatedMatches.length) return;
+        
+        let matchChanged = false;
+        const currentM = { ...updatedMatches[index] };
+
+        if (game.finished === "TRUE") {
+          const home = parseInt(game.home_score);
+          const away = parseInt(game.away_score);
+          let newResult = null;
+          if (home > away) newResult = 'A';
+          else if (home < away) newResult = 'B';
+          else newResult = 'D';
+          
+          if (currentM.result !== newResult) {
+            currentM.result = newResult;
+            matchChanged = true;
+          }
+        }
+        
+        if (currentM.stage !== 'group') {
+          if (game.home_team_name_en && game.home_team_name_en !== "null" && game.home_team_id !== "0") {
+            const teamCodeA = API_TEAM_CODE_MAP[game.home_team_name_en];
+            if (teamCodeA && currentM.teamA !== teamCodeA) {
+              currentM.teamA = teamCodeA;
+              currentM.teamAName = game.home_team_name_en;
+              matchChanged = true;
+            }
+          }
+          if (game.away_team_name_en && game.away_team_name_en !== "null" && game.away_team_id !== "0") {
+            const teamCodeB = API_TEAM_CODE_MAP[game.away_team_name_en];
+            if (teamCodeB && currentM.teamB !== teamCodeB) {
+              currentM.teamB = teamCodeB;
+              currentM.teamBName = game.away_team_name_en;
+              matchChanged = true;
+            }
+          }
+        }
+
+        if (matchChanged) {
+          updatedMatches[index] = currentM;
+          hasChanges = true;
+        }
+      });
+      
+      if (hasChanges) {
+        setMatches(updatedMatches);
+        
+        const results = {};
+        const koTeams = {};
+        updatedMatches.forEach(m => {
+          if (m.result !== null) results[m.id] = m.result;
+          if (m.stage !== 'group') {
+            koTeams[m.id] = {
+              teamAName: m.teamAName,
+              teamBName: m.teamBName,
+              teamA: m.teamA,
+              teamB: m.teamB
+            };
+          }
+        });
+        
+        if (sheetUrlToUse) {
+          await fetch(sheetUrlToUse, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'updateResults',
+              matchesResults: results,
+              knockoutTeams: koTeams
+            })
+          });
+        }
+      }
+      
+      const newSyncTime = new Date().toISOString();
+      const updatedLocks = { ...currentLocks, 'LAST_API_SYNC_TIME': newSyncTime };
+      setLockedMatches(updatedLocks);
+      
+      if (sheetUrlToUse) {
+        await fetch(sheetUrlToUse, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'updateLocks',
+            lockedMatches: updatedLocks
+          })
+        });
+      }
+      
+    } catch (err) {
+      console.error("Auto sync error:", err);
     }
   };
 
