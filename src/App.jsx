@@ -385,11 +385,57 @@ export default function App() {
         "Panama": "PAN"
       };
       
-      data.games.forEach((game, index) => {
-        if (index >= updatedMatches.length) return;
+      data.games.forEach((game) => {
+        const apiId = parseInt(game.id);
+        let matchingMatchIndex = -1;
+
+        if (game.type === 'group' || apiId <= 72) {
+          if (game.home_team_name_en && game.away_team_name_en && game.home_team_name_en !== "null" && game.away_team_name_en !== "null") {
+            const teamCodeA = API_TEAM_CODE_MAP[game.home_team_name_en];
+            const teamCodeB = API_TEAM_CODE_MAP[game.away_team_name_en];
+            if (teamCodeA && teamCodeB) {
+              matchingMatchIndex = updatedMatches.findIndex(m => 
+                m.stage === 'group' && 
+                ((m.teamA === teamCodeA && m.teamB === teamCodeB) || (m.teamA === teamCodeB && m.teamB === teamCodeA))
+              );
+            }
+          }
+        } else {
+          if (apiId >= 73 && apiId <= 88) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `r32_${apiId - 72}`);
+          else if (apiId >= 89 && apiId <= 96) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `r16_${apiId - 88}`);
+          else if (apiId >= 97 && apiId <= 100) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `qf_${apiId - 96}`);
+          else if (apiId >= 101 && apiId <= 102) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `sf_${apiId - 100}`);
+          else if (apiId === 103) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `third_place`);
+          else if (apiId === 104) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `final`);
+        }
+
+        if (matchingMatchIndex === -1) return;
         
         let matchChanged = false;
-        const currentM = { ...updatedMatches[index] };
+        const currentM = { ...updatedMatches[matchingMatchIndex] };
+
+        let isApiHomeTeamA = true;
+        
+        if (currentM.stage === 'group') {
+           isApiHomeTeamA = currentM.teamA === API_TEAM_CODE_MAP[game.home_team_name_en];
+        } else {
+           if (game.home_team_name_en && game.home_team_name_en !== "null" && game.home_team_id !== "0") {
+             const teamCodeA = API_TEAM_CODE_MAP[game.home_team_name_en];
+             if (teamCodeA && currentM.teamA !== teamCodeA) {
+               currentM.teamA = teamCodeA;
+               currentM.teamAName = game.home_team_name_en;
+               matchChanged = true;
+             }
+           }
+           if (game.away_team_name_en && game.away_team_name_en !== "null" && game.away_team_id !== "0") {
+             const teamCodeB = API_TEAM_CODE_MAP[game.away_team_name_en];
+             if (teamCodeB && currentM.teamB !== teamCodeB) {
+               currentM.teamB = teamCodeB;
+               currentM.teamBName = game.away_team_name_en;
+               matchChanged = true;
+             }
+           }
+        }
 
         const homeScoreRaw = game.home_score;
         const awayScoreRaw = game.away_score;
@@ -398,7 +444,9 @@ export default function App() {
         if (hasScore) {
           const home = parseInt(homeScoreRaw);
           const away = parseInt(awayScoreRaw);
-          const newScoreStr = `${home} - ${away}`;
+          const scoreA = isApiHomeTeamA ? home : away;
+          const scoreB = isApiHomeTeamA ? away : home;
+          const newScoreStr = `${scoreA} - ${scoreB}`;
           
           if (scoresObj[currentM.id] !== newScoreStr || currentM.score !== newScoreStr) {
             currentM.score = newScoreStr;
@@ -408,8 +456,8 @@ export default function App() {
 
           if (game.finished === "TRUE") {
             let newResult = null;
-            if (home > away) newResult = 'A';
-            else if (home < away) newResult = 'B';
+            if (scoreA > scoreB) newResult = 'A';
+            else if (scoreA < scoreB) newResult = 'B';
             else newResult = 'D';
             
             if (currentM.result !== newResult) {
@@ -418,28 +466,9 @@ export default function App() {
             }
           }
         }
-        
-        if (currentM.stage !== 'group') {
-          if (game.home_team_name_en && game.home_team_name_en !== "null" && game.home_team_id !== "0") {
-            const teamCodeA = API_TEAM_CODE_MAP[game.home_team_name_en];
-            if (teamCodeA && currentM.teamA !== teamCodeA) {
-              currentM.teamA = teamCodeA;
-              currentM.teamAName = game.home_team_name_en;
-              matchChanged = true;
-            }
-          }
-          if (game.away_team_name_en && game.away_team_name_en !== "null" && game.away_team_id !== "0") {
-            const teamCodeB = API_TEAM_CODE_MAP[game.away_team_name_en];
-            if (teamCodeB && currentM.teamB !== teamCodeB) {
-              currentM.teamB = teamCodeB;
-              currentM.teamBName = game.away_team_name_en;
-              matchChanged = true;
-            }
-          }
-        }
 
         if (matchChanged) {
-          updatedMatches[index] = currentM;
+          updatedMatches[matchingMatchIndex] = currentM;
           hasChanges = true;
         }
       });
