@@ -437,32 +437,48 @@ export default function App() {
            }
         }
 
-        const homeScoreRaw = game.home_score;
-        const awayScoreRaw = game.away_score;
-        const hasScore = homeScoreRaw !== null && homeScoreRaw !== undefined && homeScoreRaw !== "" && homeScoreRaw !== "null";
-        
-        if (hasScore) {
-          const home = parseInt(homeScoreRaw);
-          const away = parseInt(awayScoreRaw);
-          const scoreA = isApiHomeTeamA ? home : away;
-          const scoreB = isApiHomeTeamA ? away : home;
-          const newScoreStr = `${scoreA} - ${scoreB}`;
-          
-          if (scoresObj[currentM.id] !== newScoreStr || currentM.score !== newScoreStr) {
-            currentM.score = newScoreStr;
-            scoresObj[currentM.id] = newScoreStr;
+        const isNotStarted = game.time_elapsed === "notstarted";
+
+        if (isNotStarted) {
+          if (currentM.score !== null || scoresObj[currentM.id] !== undefined || currentM.result !== null) {
+            currentM.score = null;
+            delete scoresObj[currentM.id];
+            currentM.result = null;
             matchChanged = true;
           }
-
-          if (game.finished === "TRUE") {
-            let newResult = null;
-            if (scoreA > scoreB) newResult = 'A';
-            else if (scoreA < scoreB) newResult = 'B';
-            else newResult = 'D';
+        } else {
+          const homeScoreRaw = game.home_score;
+          const awayScoreRaw = game.away_score;
+          const hasScore = homeScoreRaw !== null && homeScoreRaw !== undefined && homeScoreRaw !== "" && homeScoreRaw !== "null";
+          
+          if (hasScore) {
+            const home = parseInt(homeScoreRaw);
+            const away = parseInt(awayScoreRaw);
+            const scoreA = isApiHomeTeamA ? home : away;
+            const scoreB = isApiHomeTeamA ? away : home;
+            const newScoreStr = `${scoreA} - ${scoreB}`;
             
-            if (currentM.result !== newResult) {
-              currentM.result = newResult;
+            if (scoresObj[currentM.id] !== newScoreStr || currentM.score !== newScoreStr) {
+              currentM.score = newScoreStr;
+              scoresObj[currentM.id] = newScoreStr;
               matchChanged = true;
+            }
+
+            if (game.finished === "TRUE") {
+              let newResult = null;
+              if (scoreA > scoreB) newResult = 'A';
+              else if (scoreA < scoreB) newResult = 'B';
+              else newResult = 'D';
+              
+              if (currentM.result !== newResult) {
+                currentM.result = newResult;
+                matchChanged = true;
+              }
+            } else {
+              if (currentM.result !== null) {
+                currentM.result = null;
+                matchChanged = true;
+              }
             }
           }
         }
