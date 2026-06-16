@@ -260,7 +260,7 @@ export default function App() {
     }
   }, [sheetUrl]);
 
-  const syncWithSheet = async (url = sheetUrl) => {
+  const syncWithSheet = async (url = sheetUrl, forceApiSync = false) => {
     if (!url) return;
     setLoading(true);
     try {
@@ -342,7 +342,14 @@ export default function App() {
       // --- AUTO SYNC API LOGIC ---
       const lastSyncTimeStr = resolvedLocks['LAST_API_SYNC_TIME'];
       const lastSyncTime = lastSyncTimeStr ? new Date(lastSyncTimeStr).getTime() : 0;
-      if (Date.now() - lastSyncTime >= 300000) {
+      
+      // Tự động phát hiện dữ liệu lỗi (các trận tương lai chưa đá nhưng có tỉ số/kết quả)
+      const hasCorruptData = resolvedMatches.some(m => {
+        const isFuture = new Date(m.date).getTime() > Date.now();
+        return isFuture && (m.score !== null || m.result !== null);
+      });
+
+      if (forceApiSync || hasCorruptData || Date.now() - lastSyncTime >= 300000) {
         autoSyncApiResults(resolvedMatches, resolvedLocks, url);
       }
 
@@ -1443,7 +1450,7 @@ export default function App() {
                 <Button
                   size="small"
                   type="text"
-                  onClick={() => syncWithSheet().then(() => alert('Dữ liệu đã được cập nhật mới nhất!'))}
+                  onClick={() => syncWithSheet(sheetUrl, true).then(() => alert('Dữ liệu đã được cập nhật mới nhất!'))}
                   icon={<SyncOutlined spin={loading} />}
                   style={{ color: '#ffd700', fontSize: 11 }}
                 >
