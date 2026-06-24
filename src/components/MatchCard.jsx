@@ -75,7 +75,8 @@ export default function MatchCard({
 
   return (
     <Card
-      className="glass-card"
+      id={`match-card-${match.id}`}
+      className={`glass-card ${!isLocked ? 'predictable-match' : ''}`}
       style={{
         border: getCardBorderColor(),
         background: 'rgba(15, 23, 42, 0.5)',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ConfigProvider, Layout, Tabs, Select, Button, Space, Badge, Modal, Input, Form, Typography, Spin, Alert, Row, Col, Tag, theme as antdTheme } from 'antd';
-import { TrophyFilled, SyncOutlined, LockOutlined, CrownOutlined, UserOutlined, EyeOutlined } from '@ant-design/icons';
+import { ConfigProvider, Layout, Tabs, Select, Button, Space, Badge, Modal, Input, Form, Typography, Spin, Alert, Row, Col, Tag, FloatButton, theme as antdTheme } from 'antd';
+import { TrophyFilled, SyncOutlined, LockOutlined, CrownOutlined, UserOutlined, EyeOutlined, ArrowUpOutlined } from '@ant-design/icons';
 import Navbar from './components/Navbar';
 import MatchCard from './components/MatchCard';
 import Leaderboard from './components/Leaderboard';
@@ -155,7 +155,7 @@ export default function App() {
   const [sheetConnected, setSheetConnected] = useState(false);
   const [activeTab, setActiveTab] = useState('group'); 
   const [groupFilter, setGroupFilter] = useState('ALL'); 
-  const [matchdayFilter, setMatchdayFilter] = useState('ALL'); 
+  const [matchdayFilter, setMatchdayFilter] = useState('2'); 
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [hasDraftChanges, setHasDraftChanges] = useState(false);
@@ -197,6 +197,56 @@ export default function App() {
     }, 2800);
     return () => clearTimeout(timer);
   }, [currentUserId]);
+
+  // --- AUTO SCROLL TO LATEST LOCKED MATCH ---
+  const scrollToLastLockedMatch = () => {
+    // 1. Tìm tất cả các trận đã bị khóa trong giải đấu
+    const lockedMatchesList = matches.filter(m => {
+      if (lockedMatches[m.id] !== undefined) {
+        return lockedMatches[m.id];
+      }
+      return new Date() > new Date(m.date);
+    });
+
+    // Trận mục tiêu là trận đã khóa cuối cùng (hoặc trận đầu tiên nếu chưa có trận nào khóa)
+    const targetMatch = lockedMatchesList.length > 0
+      ? lockedMatchesList[lockedMatchesList.length - 1]
+      : matches[0];
+
+    if (targetMatch) {
+      // 2. Tự động chuyển Tab/Lượt trận tương ứng với trận đấu mục tiêu đó
+      if (targetMatch.stage === 'group') {
+        setActiveTab('group');
+        if (targetMatch.matchday) {
+          setMatchdayFilter(String(targetMatch.matchday));
+        }
+      } else {
+        setActiveTab(targetMatch.stage);
+      }
+    }
+
+    // 3. Thực hiện cuộn mượt mà (retry tuần hoàn đề phòng độ trễ render)
+    let attempts = 0;
+    const interval = setInterval(() => {
+      const element = targetMatch 
+        ? document.getElementById(`match-card-${targetMatch.id}`) 
+        : null;
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        clearInterval(interval);
+      }
+      attempts++;
+      if (attempts > 15) { // Dừng sau 3 giây nếu không tìm thấy
+        clearInterval(interval);
+      }
+    }, 200);
+  };
+
+  useEffect(() => {
+    if (currentUserId && !showWelcome) {
+      scrollToLastLockedMatch();
+    }
+  }, [currentUserId, showWelcome]);
 
   // --- SYNC LOCAL STORAGE ---
   useEffect(() => {
@@ -1671,6 +1721,18 @@ export default function App() {
           </Button>
         </div>
       )}
+
+      {/* Back to top float button */}
+      <FloatButton.BackTop
+        visibilityHeight={400}
+        icon={<ArrowUpOutlined style={{ color: '#0f172a', fontWeight: 'bold' }} />}
+        style={{
+          right: 24,
+          bottom: 24,
+          background: 'linear-gradient(135deg, #ffd700 0%, #d97706 100%)',
+          border: '1px solid #ffd700',
+        }}
+      />
     </ConfigProvider>
   );
 }

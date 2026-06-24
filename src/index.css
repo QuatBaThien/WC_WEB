@@ -196,3 +196,122 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(0, 245, 160, 0.06) !important;
 }
+
+/* Responsive Helper Utilities */
+@media (max-width: 575px) {
+  .hidden-xs { display: none !important; }
+  .visible-xs { display: block !important; }
+  span.visible-xs { display: inline !important; }
+  div.visible-xs { display: block !important; }
+}
+@media (min-width: 576px) {
+  .hidden-xs { display: block !important; }
+  span.hidden-xs { display: inline !important; }
+  div.hidden-xs { display: block !important; }
+  .visible-xs { display: none !important; }
+}
+
+/* Utility Classes Support (Vite/Antd hybrid) */
+.flex { display: flex !important; }
+.flex-col { flex-direction: column !important; }
+.flex-row { flex-direction: row !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+.items-center { align-items: center !important; }
+.justify-between { justify-content: space-between !important; }
+.justify-end { justify-content: flex-end !important; }
+.justify-center { justify-content: center !important; }
+.gap-1\.5 { gap: 6px !important; }
+.gap-2 { gap: 8px !important; }
+.gap-4 { gap: 16px !important; }
+.gap-6 { gap: 24px !important; }
+.mb-2 { margin-bottom: 8px !important; }
+.mb-3 { margin-bottom: 12px !important; }
+.mb-4 { margin-bottom: 16px !important; }
+.mt-4 { margin-top: 16px !important; }
+.mx-auto { margin-left: auto !important; margin-right: auto !important; }
+.px-4 { padding-left: 16px !important; padding-right: 16px !important; }
+.text-xs { font-size: 12px !important; }
+.text-slate-400 { color: #94a3b8 !important; }
+.truncate { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.max-w-\[80px\] { max-width: 80px !important; }
+
+@media (min-width: 640px) {
+  .sm\:flex-row { flex-direction: row !important; }
+}
+@media (min-width: 768px) {
+  .md\:px-6 { padding-left: 24px !important; padding-right: 24px !important; }
+}
+
+/* Premium Tab Navigation Styling (Cyber-Sport theme) */
+
+/* 1. Main Tabs styling */
+.ant-tabs {
+  color: #94a3b8 !important;
+}
+
+.ant-tabs .ant-tabs-nav {
+  margin-bottom: 0 !important;
+}
+
+.ant-tabs .ant-tabs-tab {
+  font-family: var(--font-heading);
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 10px 16px !important;
+  color: #64748b !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border-radius: 8px !important;
+}
+
+.ant-tabs .ant-tabs-tab:hover {
+  color: #ffd700 !important;
+  background: rgba(255, 215, 0, 0.04) !important;
+}
+
+/* HIGH-CRAFT ACTIVE STATE: Gold text, glow, and thick gradient ink bar */
+.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #ffd700 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+}
+
+.ant-tabs .ant-tabs-tab-active {
+  background: rgba(255, 215, 0, 0.06) !important;
+}
+
+.ant-tabs .ant-tabs-ink-bar {
+  background: linear-gradient(90deg, #ffd700 0%, #00f5a0 100%) !important;
+  height: 3px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 0 10px rgba(0, 245, 160, 0.6) !important;
+}
+
+/* 2. Nested Matchday Card-style Tabs styling */
+.wc-nested-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
+  background: rgba(10, 15, 30, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-bottom: none !important;
+  border-radius: 8px 8px 0 0 !important;
+  margin-right: 4px !important;
+  font-size: 12px !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+.wc-nested-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab:hover {
+  color: #00f5a0 !important;
+  background: rgba(0, 245, 160, 0.04) !important;
+}
+
+/* HIGH-CRAFT ACTIVE STATE (NESTED CARD TABS): Emerald green theme */
+.wc-nested-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active {
+  background: rgba(0, 245, 160, 0.12) !important;
+  border-color: rgba(0, 245, 160, 0.3) !important;
+  border-bottom-color: transparent !important;
+}
+
+.wc-nested-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #00f5a0 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 10px rgba(0, 245, 160, 0.4);
+}

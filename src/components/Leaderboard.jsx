@@ -229,19 +229,25 @@ export default function Leaderboard({
         const isMinhChu = followers.length > 0;
 
         return (
-          <Space size={6} wrap={false}>
-            {isMinhChu && <CrownOutlined style={{ color: '#ffd700', fontSize: 13 }} />}
-            <Text strong style={{ color: isCurrent ? '#ffd700' : isMinhChu ? '#fcd34d' : '#f8fafc', fontWeight: 700, fontSize: 12 }}>
-              {isMinhChu ? `${text}` : text}
+          <Space size={6} wrap={false} style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}>
+            {isMinhChu && <CrownOutlined style={{ color: '#ffd700', fontSize: 13, flexShrink: 0 }} />}
+            <Text strong style={{ 
+              color: isCurrent ? '#ffd700' : isMinhChu ? '#fcd34d' : '#f8fafc', 
+              fontWeight: 700, 
+              fontSize: 12,
+              whiteSpace: 'nowrap',
+              display: 'inline-block'
+            }}>
+              {text}
             </Text>
             {isCurrent && (
               <Badge
                 count="BẠN"
-                style={{ backgroundColor: '#ffd700', color: '#000', fontWeight: 'bold', fontSize: 9 }}
+                style={{ backgroundColor: '#ffd700', color: '#000', fontWeight: 'bold', fontSize: 9, whiteSpace: 'nowrap', flexShrink: 0 }}
               />
             )}
             {isMinhChu && (
-              <span style={{ color: '#64748b', fontSize: 10 }}>({followers.length} follow)</span>
+              <span style={{ color: '#64748b', fontSize: 10 }} className="hidden-xs">({followers.length} follow)</span>
             )}
           </Space>
         );
@@ -314,6 +320,7 @@ export default function Leaderboard({
       key: 'minh_chu',
       align: 'center',
       width: 110,
+      responsive: ['md'],
       render: (_, record) => {
         const currentUserPlayer = players.find(p => p.id === currentUserId);
         const currentUserFollowingId = currentUserPlayer?.predictions?.following;
@@ -378,6 +385,7 @@ export default function Leaderboard({
       key: 'correctCount',
       align: 'center',
       width: 55,
+      responsive: ['sm'],
       render: (text) => <Text style={{ color: '#00f5a0', fontWeight: 'bold' }}>{text}</Text>
     },
     {
@@ -386,6 +394,7 @@ export default function Leaderboard({
       key: 'incorrectCount',
       align: 'center',
       width: 48,
+      responsive: ['sm'],
       render: (text) => <Text style={{ color: '#ff4d4f', fontWeight: 'bold' }}>{text}</Text>
     },
     {
@@ -394,14 +403,20 @@ export default function Leaderboard({
       key: 'totalPredicted',
       align: 'center',
       width: 75,
+      responsive: ['sm'],
       render: (text) => <Text style={{ color: '#94a3b8', fontSize: '11px' }}>{text}/104</Text>
     },
     {
-      title: 'Cái giá phải trả',
+      title: (
+        <>
+          <span className="hidden-xs">Cái giá phải trả</span>
+          <span className="visible-xs">Phạt</span>
+        </>
+      ),
       dataIndex: 'penaltyPoints',
       key: 'penaltyPoints',
       align: 'right',
-      width: 130,
+      width: 100,
       render: (text) => (
         <Text style={{ color: '#ffd700', fontSize: '16px', fontWeight: 900 }}>{text}</Text>
       )
@@ -416,6 +431,90 @@ export default function Leaderboard({
 
     return (
       <div style={{ padding: '8px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+
+        {/* Mobile-Friendly Stat & Action Summary Card */}
+        <div 
+          className="visible-xs"
+          style={{ 
+            marginBottom: 16, 
+            background: 'rgba(30, 41, 59, 0.4)', 
+            padding: 12, 
+            borderRadius: 10, 
+            border: '1px solid rgba(255,255,255,0.06)' 
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            {/* Stat 1: Đúng */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: 6, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Đoán Đúng</div>
+              <div style={{ fontSize: 16, color: '#00f5a0', fontWeight: 'bold', marginTop: 2 }}>{playerRecord.correctCount}</div>
+            </div>
+            {/* Stat 2: Sai */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: 6, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Đoán Sai</div>
+              <div style={{ fontSize: 16, color: '#ff4d4f', fontWeight: 'bold', marginTop: 2 }}>{playerRecord.incorrectCount}</div>
+            </div>
+            {/* Stat 3: Đã đoán */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: 6, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Đã đoán</div>
+              <div style={{ fontSize: 14, color: '#94a3b8', fontWeight: 'bold', marginTop: 4 }}>{playerRecord.totalPredicted}/104</div>
+            </div>
+            {/* Stat 4: Minh Chủ Action */}
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 6, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', marginBottom: 2, fontWeight: 600 }}>Minh Chủ</div>
+              {(() => {
+                const currentUserPlayer = players.find(p => p.id === currentUserId);
+                const currentUserFollowingId = currentUserPlayer?.predictions?.following;
+                const recordFollowingId = playerRecord.predictions?.following;
+                const isCurrent = playerRecord.id === currentUserId;
+                const canFollow = !!currentUserId && currentUserId !== 'ADMIN_WC';
+
+                if (recordFollowingId) {
+                  return (
+                    <Tag color="gold" style={{ margin: 0, fontWeight: 'bold', fontSize: 9, padding: '0 4px' }}>
+                      Theo: {recordFollowingId}
+                    </Tag>
+                  );
+                }
+                if (isCurrent) {
+                  return <span style={{ color: '#64748b', fontSize: 11 }}>—</span>;
+                }
+                if (currentUserFollowingId === playerRecord.id) {
+                  return (
+                    <Tag color="success" style={{ margin: 0, fontWeight: 'bold', fontSize: 9, padding: '0 4px' }}>
+                      Đang theo
+                    </Tag>
+                  );
+                }
+                if (playerRecord.id === 'ADMIN_WC' || !canFollow) {
+                  return <span style={{ color: '#475569', fontSize: 11 }}>Khóa</span>;
+                }
+                return (
+                  <Button
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFollowClick(playerRecord);
+                    }}
+                    style={{
+                      height: 18,
+                      fontSize: 8,
+                      fontWeight: 700,
+                      borderRadius: 4,
+                      background: 'linear-gradient(135deg, #ffd700, #d97706)',
+                      borderColor: '#ffd700',
+                      color: '#000',
+                      padding: '0 6px',
+                      lineHeight: '16px'
+                    }}
+                  >
+                    Chọn
+                  </Button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
 
         {/* Dự đoán Vô địch */}
         <div style={{ marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
