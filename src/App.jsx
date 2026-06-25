@@ -7,6 +7,7 @@ import Leaderboard from './components/Leaderboard';
 import AdminPanel from './components/AdminPanel';
 import LoginModal from './components/LoginModal';
 import ChampionPanel from './components/ChampionPanel';
+import BracketView from './components/BracketView';
 import { INITIAL_MATCHES, TEAMS, CHAMPION_OPTIONS } from './data/wcData';
 
 const { Content } = Layout;
@@ -163,6 +164,22 @@ export default function App() {
   // --- WELCOME & POPUP STATE ---
   const [showWelcome, setShowWelcome] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path) => {
+    // Tự động thêm base path '/WC_WEB' nếu cần thiết
+    const targetPath = (path.startsWith('/') && !path.startsWith('/WC_WEB')) ? `/WC_WEB${path}` : path;
+    window.history.pushState({}, '', targetPath);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 
   // --- PENALTIES CONFIG STATE ---
   const [penaltiesConfig, setPenaltiesConfig] = useState(() => {
@@ -1437,9 +1454,22 @@ export default function App() {
           onOpenLoginModal={() => setShowLoginModal(true)}
           sheetConnected={sheetConnected}
           isAdmin={isAdmin}
+          onNavigate={navigateTo}
         />
 
         <Content style={{ padding: '0 0 40px 0' }}>
+          {currentPath.endsWith('/bracket') || currentPath.endsWith('/bracket/') ? (
+            <BracketView
+              matches={matches}
+              predictions={currentPredictions}
+              currentUserId={currentUserId}
+              onPredict={handlePredict}
+              lockedMatches={lockedMatches}
+              isAdmin={isAdmin}
+              onBack={() => navigateTo('/')}
+            />
+          ) : (
+            <>
           
           {/* 3. HERO BANNER IMAGE (Vua Tiên Tri) */}
           <div className="container mx-auto px-4 md:px-6 mt-6">
@@ -1665,60 +1695,72 @@ export default function App() {
             </Row>
 
           </div>
+            </>
+          )}
         </Content>
       </Layout>
 
-      {/* Floating Save predictions bar */}
-      {currentUserId && currentUserId !== 'ADMIN_WC' && (
-        <div 
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 90,
-            background: 'rgba(13, 19, 41, 0.95)',
-            border: hasDraftChanges ? '1px solid #ffd700' : '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 16,
-            padding: '12px 24px',
-            boxShadow: hasDraftChanges ? '0 0 25px rgba(253, 224, 71, 0.25)' : '0 10px 30px rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 20,
-            backdropFilter: 'blur(10px)',
-            transition: 'all 0.3s ease',
-            width: '90%',
-            maxWidth: 450
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
-              Tài khoản: <span style={{ color: '#ffd700' }}>{currentUserId}</span>
-            </span>
-            <span style={{ fontSize: '11px', color: '#cbd5e1', marginTop: 2 }}>
-              {hasDraftChanges ? (
-                <span style={{ color: '#faad14', fontWeight: 'bold' }}>● Có thay đổi chưa lưu</span>
-              ) : (
-                <span style={{ color: '#52c41a' }}>✓ Dự đoán đã đồng bộ</span>
-              )}
-            </span>
-          </div>
-          <Button
-            type="primary"
-            loading={saveLoading}
-            onClick={handleSavePredictions}
-            style={{
-              background: hasDraftChanges ? 'linear-gradient(135deg, #ffd700 0%, #d97706 100%)' : 'rgba(255,255,255,0.05)',
-              borderColor: hasDraftChanges ? '#ffd700' : 'rgba(255,255,255,0.1)',
-              color: hasDraftChanges ? '#0f172a' : '#94a3b8',
-              fontWeight: 'bold',
-              height: 34,
-              borderRadius: 8
-            }}
-          >
-            {hasDraftChanges ? 'GỬI DỰ ĐOÁN' : 'ĐÃ LƯU'}
-          </Button>
+      {/* Floating Save predictions & View Bracket actions */}
+      {currentUserId !== 'ADMIN_WC' && (
+        <div className="floating-action-wrapper">
+          {/* Status predictions bar (only for logged in users) */}
+          {currentUserId && (
+            <div 
+              style={{
+                background: 'rgba(13, 19, 41, 0.95)',
+                border: hasDraftChanges ? '1px solid #ffd700' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: '12px 24px',
+                boxShadow: hasDraftChanges ? '0 0 25px rgba(253, 224, 71, 0.25)' : '0 10px 30px rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 20,
+                backdropFilter: 'blur(10px)',
+                width: '100%',
+                maxWidth: 450
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+                  Tài khoản: <span style={{ color: '#ffd700' }}>{currentUserId}</span>
+                </span>
+                <span style={{ fontSize: '11px', color: '#cbd5e1', marginTop: 2 }}>
+                  {hasDraftChanges ? (
+                    <span style={{ color: '#faad14', fontWeight: 'bold' }}>● Có thay đổi chưa lưu</span>
+                  ) : (
+                    <span style={{ color: '#52c41a' }}>✓ Dự đoán đã đồng bộ</span>
+                  )}
+                </span>
+              </div>
+              <Button
+                type="primary"
+                loading={saveLoading}
+                onClick={handleSavePredictions}
+                style={{
+                  background: hasDraftChanges ? 'linear-gradient(135deg, #ffd700 0%, #d97706 100%)' : 'rgba(255,255,255,0.05)',
+                  borderColor: hasDraftChanges ? '#ffd700' : 'rgba(255,255,255,0.1)',
+                  color: hasDraftChanges ? '#0f172a' : '#94a3b8',
+                  fontWeight: 'bold',
+                  height: 34,
+                  borderRadius: 8
+                }}
+              >
+                {hasDraftChanges ? 'GỬI DỰ ĐOÁN' : 'ĐÃ LƯU'}
+              </Button>
+            </div>
+          )}
+
+          {/* Toggle View Bracket Button (Hidden when on bracket page) */}
+          {!(currentPath.endsWith('/bracket') || currentPath.endsWith('/bracket/')) && (
+            <Button
+              type="primary"
+              onClick={() => navigateTo('/bracket')}
+              className="pulse-glow-btn-large"
+            >
+              <TrophyFilled /> Xem Nhánh
+            </Button>
+          )}
         </div>
       )}
 

@@ -10,9 +10,10 @@ body {
   background-color: var(--bg-deep);
   /* Sân vận động mờ chìm làm hình nền */
   background-image: 
-    linear-gradient(to bottom, rgba(3, 4, 12, 0.85) 0%, rgba(3, 4, 12, 0.95) 100%),
-    radial-gradient(circle at 50% 30%, rgba(0, 245, 160, 0.15) 0%, transparent 60%),
-    radial-gradient(circle at 10% 80%, rgba(56, 189, 248, 0.15) 0%, transparent 50%);
+    linear-gradient(to bottom, rgba(3, 4, 12, 0.55) 0%, rgba(3, 4, 12, 0.75) 100%),
+    url('./assets/wc_background.png');
+  background-size: cover;
+  background-position: center;
   background-attachment: fixed;
   color: #f8fafc;
   font-family: var(--font-body);
@@ -314,4 +315,517 @@ body {
   color: #00f5a0 !important;
   font-weight: 800 !important;
   text-shadow: 0 0 10px rgba(0, 245, 160, 0.4);
+}
+
+/* --- TOURNAMENT BRACKET (ESPN STYLE) --- */
+
+/* Nút xem nhánh đấu nhấp nháy nổi bật (cũ, giữ nguyên) */
+.pulse-glow-btn {
+  background: linear-gradient(135deg, #ffd700 0%, #d97706 100%) !important;
+  border-color: #ffd700 !important;
+  color: #03040c !important;
+  font-weight: 800 !important;
+  font-size: 11px !important;
+  height: 28px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.4) !important;
+  animation: pulse-glow-anim 2.5s infinite !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.3s ease !important;
+  padding: 0 12px !important;
+  border: none !important;
+  cursor: pointer;
+}
+
+.pulse-glow-btn:hover {
+  transform: scale(1.05) !important;
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.7) !important;
+  filter: brightness(1.1);
+}
+
+/* Nút xem nhánh đấu nổi bật kích thước lớn làm nút Floating */
+.pulse-glow-btn-large {
+  background: linear-gradient(135deg, #ffd700 0%, #d97706 100%) !important;
+  border-color: #ffd700 !important;
+  color: #03040c !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  height: 48px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 15px rgba(255, 215, 0, 0.3) !important;
+  animation: pulse-glow-anim 2.5s infinite !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: all 0.3s ease !important;
+  padding: 0 20px !important;
+  border: none !important;
+  cursor: pointer;
+}
+
+.pulse-glow-btn-large:hover {
+  transform: scale(1.05) !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 10px 30px rgba(0,0,0,0.6) !important;
+  filter: brightness(1.1);
+}
+
+/* Floating action wrapper bọc ngoài thanh dự đoán và nút xem nhánh */
+.floating-action-wrapper {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: 95%;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.floating-action-wrapper > * {
+  pointer-events: auto; /* Cho phép tương tác click/hover với phần tử con */
+}
+
+/* Trên mobile: xếp chồng nút xem nhánh ở phía trên thanh dự đoán */
+@media (max-width: 767px) {
+  .floating-action-wrapper {
+    flex-direction: column-reverse;
+    align-items: center;
+    width: 90%;
+    gap: 8px;
+  }
+}
+
+@keyframes pulse-glow-anim {
+  0% {
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.8), 0 0 20px rgba(0, 245, 160, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.4);
+  }
+}
+
+/* Sơ đồ nhánh đấu */
+.bracket-wrapper {
+  display: flex;
+  overflow-x: auto;
+  padding: 20px 0;
+  min-width: 100%;
+  scrollbar-width: thin;
+  user-select: none;
+}
+
+.bracket-content {
+  display: flex;
+  align-items: center;
+  min-width: max-content;
+  margin: 0 auto;
+}
+
+/* Cây nhị phân phân bố chiều cao */
+.bracket-tree-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 960px;
+  flex-shrink: 0;
+}
+
+/* Node nhánh đấu (bao gồm trận đấu cha và các trận con) */
+.bracket-node {
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+.bracket-children > .bracket-node {
+  flex: 1;
+  height: auto; /* override height: 100% for nested nodes */
+}
+.bracket-node.left {
+  flex-direction: row-reverse;
+}
+.bracket-node.right {
+  flex-direction: row;
+}
+
+/* Hộp bọc thẻ trận đấu */
+.bracket-match-container {
+  position: relative;
+  z-index: 10;
+  width: 145px; /* Thu gọn chiều rộng card standard */
+  flex-shrink: 0;
+  padding: 4px 0;
+}
+
+/* Khối bọc các trận con */
+.bracket-children {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 100%;
+  position: relative;
+  padding: 0 16px; /* Giảm padding đệm ngang */
+  flex-shrink: 0;
+}
+
+/* --- ĐƯỜNG NỐI NHỊ PHÂN SẮC NÉT (CONNECTORS) --- */
+
+/* 1. Đường ngang từ trận cha đi ra */
+.left > .bracket-match-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -16px;
+  width: 16px;
+  height: 0px;
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  transform: translateY(-50%);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+.right > .bracket-match-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -16px;
+  width: 16px;
+  height: 0px;
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  transform: translateY(-50%);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+
+/* 2. Đường dọc nối 2 nhánh con */
+.left > .bracket-children::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 0px;
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+.right > .bracket-children::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 0px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+
+/* 3. Đường ngang từ trận con đi vào đường dọc */
+.left > .bracket-children > .bracket-node::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -16px;
+  width: 16px;
+  height: 0px;
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  transform: translateY(-50%);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+.right > .bracket-children > .bracket-node::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -16px;
+  width: 16px;
+  height: 0px;
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  transform: translateY(-50%);
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+
+/* --- HIGHLIGHT ĐƯỜNG NỐI (GLOWING GREEN ON HOVER) --- */
+.left.highlighted-path > .bracket-match-container::before,
+.right.highlighted-path > .bracket-match-container::before,
+.left > .bracket-children.highlighted-path::after,
+.right > .bracket-children.highlighted-path::after,
+.left > .bracket-children.highlighted-path > .bracket-node.highlighted-path::after,
+.right > .bracket-children.highlighted-path > .bracket-node.highlighted-path::after {
+  border-color: #00f5a0 !important;
+  filter: drop-shadow(0 0 5px rgba(0, 245, 160, 0.8)) !important;
+}
+
+/* --- HIGHLIGHT THẺ ĐẤU CHUNG KẾT & TRANH HẠNG 3 --- */
+.final-match-card {
+  width: 180px !important;
+  border: 2px solid rgba(255, 215, 0, 0.6) !important;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.2) !important;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(13, 19, 41, 0.98) 100%) !important;
+}
+.final-match-card:hover {
+  border-color: #ffd700 !important;
+  box-shadow: 0 0 35px rgba(255, 215, 0, 0.4) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+}
+.final-match-card .bracket-team-row {
+  height: 34px !important;
+  font-size: 13px !important;
+  padding: 8px 12px !important;
+}
+.final-match-card .bracket-team-flag {
+  width: 20px !important;
+  height: 14px !important;
+}
+.final-match-card .bracket-score-box {
+  width: 28px !important;
+  height: 24px !important;
+  font-size: 12px !important;
+}
+.final-match-card .bracket-team-placeholder {
+  width: 20px !important;
+  height: 14px !important;
+  font-size: 9px !important;
+}
+
+.third-place-match-card {
+  width: 145px !important;
+  border: 1px solid rgba(94, 234, 212, 0.35) !important;
+  box-shadow: 0 0 15px rgba(94, 234, 212, 0.08) !important;
+}
+.third-place-match-card:hover {
+  border-color: #5eead4 !important;
+  box-shadow: 0 0 20px rgba(94, 234, 212, 0.22) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Nút quay lại trang dự đoán kiểu Glassmorphism */
+.bracket-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #94a3b8 !important;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.bracket-back-btn:hover {
+  background: rgba(0, 245, 160, 0.08) !important;
+  border-color: #00f5a0 !important;
+  color: #00f5a0 !important;
+  box-shadow: 0 0 15px rgba(0, 245, 160, 0.3) !important;
+  transform: translateX(-2px) !important;
+}
+
+/* Cột giữa nhánh đấu định vị tuyệt đối */
+.bracket-middle-column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  height: 960px;
+  flex-shrink: 0;
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.3) 0%, transparent 70%);
+  z-index: 20;
+}
+
+/* Placeholder cho cờ khi chưa có đội bóng */
+.bracket-team-placeholder {
+  width: 16px;
+  height: 11px;
+  background-color: #1e293b;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 7px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Đường nối SVG động */
+.bracket-svg-path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: all 0.25s ease;
+}
+
+.bracket-svg-path.highlighted {
+  stroke: #00f5a0;
+  stroke-width: 3px;
+  filter: drop-shadow(0 0 5px rgba(0, 245, 160, 0.8));
+}
+
+/* ESPN styled card */
+.bracket-match-card {
+  background: rgba(13, 19, 41, 0.95) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.bracket-match-card:hover {
+  border-color: rgba(255, 215, 0, 0.4) !important;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.2) !important;
+  transform: translateY(-1px);
+}
+
+.bracket-match-card.highlighted-match {
+  border-color: rgba(0, 245, 160, 0.5) !important;
+  box-shadow: 0 0 20px rgba(0, 245, 160, 0.25) !important;
+}
+
+/* Thông tin trận đấu nhỏ gọn ở trên */
+.bracket-match-meta {
+  font-size: 8px;
+  color: #64748b;
+  font-weight: 700;
+  padding: 4px 8px 2px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Mỗi hàng đội tuyển */
+.bracket-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: var(--font-body);
+  transition: all 0.15s ease;
+  height: 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+.bracket-team-row:last-child {
+  border-bottom: none;
+}
+
+/* Trạng thái đội bóng được hover bắt vết */
+.bracket-team-row.highlighted-team {
+  background: rgba(0, 245, 160, 0.12) !important;
+  color: #00f5a0 !important;
+  font-weight: 700 !important;
+}
+
+/* Đội thắng cuộc (bản ghi thực tế hoặc dự đoán) */
+.bracket-team-row.winner-team {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Đội thua cuộc */
+.bracket-team-row.loser-team {
+  color: #475569;
+  font-weight: 400;
+}
+
+/* Flag & Code container */
+.bracket-team-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+/* Flag style */
+.bracket-team-flag {
+  width: 16px;
+  height: 11px;
+  object-fit: cover;
+  border-radius: 1px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+
+/* Ô điểm số */
+.bracket-score-box {
+  width: 24px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 3px;
+  color: #ffd700;
+  background: rgba(255, 255, 255, 0.04);
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+/* Nếu trận đấu đã kết thúc */
+.bracket-score-box.finished-score {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+}
+
+/* Nếu là điểm dự đoán của người dùng */
+.bracket-score-box.pred-score {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px dashed rgba(56, 189, 248, 0.3);
+}
+
+/* Hộp vô địch ở giữa */
+.bracket-champion-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(6, 8, 20, 0.95) 100%) !important;
+  border: 2px solid #ffd700 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.35) !important;
+  text-align: center;
+  width: 100%;
+}
+
+.bracket-champion-flag {
+  width: 44px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  margin-top: 6px;
 }

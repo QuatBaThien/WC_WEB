@@ -10,7 +10,8 @@ export default function Navbar({
   onLogout,
   onOpenLoginModal,
   sheetConnected,
-  isAdmin
+  isAdmin,
+  onNavigate
 }) {
   return (
     <Header
@@ -29,7 +30,11 @@ export default function Navbar({
       <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
         
         {/* Title logo */}
-        <Space size={12}>
+        <Space 
+          size={12} 
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate && onNavigate('/')}
+        >
           <div 
             style={{
               background: 'linear-gradient(135deg, #ffd700 0%, #d97706 100%)',
