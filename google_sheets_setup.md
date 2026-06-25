@@ -29,27 +29,221 @@ File này chứa đoạn mã **Google Apps Script** cần thiết để biến f
 ```javascript
 // --- GOOGLE APPS SCRIPT CODE ---
 
-// Hàm xử lý yêu cầu GET: Đọc dữ liệu từ Sheets gửi về cho React web
+// ============================================================
+//  WORLD CUP 2026 — GOOGLE APPS SCRIPT (BẢN ĐẦY ĐỦ + ZAFRONIX)
+//  Bao gồm: Predictions, Matches, KnockoutTeams, LockedMatches,
+//           MatchesDetails, Accounts
+// ============================================================
+
+// --- CẤU HÌNH ZAFRONIX API KEYS ---
+const ZAFRONIX_API_KEYS = [
+  "zwc_free_3d6c76ad6a8ed84b79007767",
+  "zwc_free_950648f2b2b4679407f00cbd",
+  "zwc_free_3bc2e5f75ca15d8e43b6df60",
+  "zwc_free_1b63d7789ef5f04db97b94e2"
+];
+
+// Bản đồ dịch tên quốc gia sang mã đội bóng (3 chữ cái)
+const TEAM_NAME_TO_CODE = {
+  "mexico": "MEX",
+  "south africa": "RSA",
+  "south korea": "KOR", "korea republic": "KOR",
+  "czech republic": "CZE", "czechia": "CZE",
+  "canada": "CAN",
+  "bosnia and herzegovina": "BIH", "bosnia": "BIH",
+  "qatar": "QAT",
+  "switzerland": "SUI",
+  "brazil": "BRA",
+  "morocco": "MAR",
+  "haiti": "HAI",
+  "scotland": "SCO",
+  "united states": "USA", "usa": "USA", "us": "USA",
+  "paraguay": "PAR",
+  "australia": "AUS",
+  "turkey": "TUR", "türkiye": "TUR",
+  "germany": "GER",
+  "curacao": "CUW", "curaçao": "CUW",
+  "ivory coast": "CIV", "côte d'ivoire": "CIV", "cote d'ivoire": "CIV",
+  "ecuador": "ECU",
+  "netherlands": "NED",
+  "japan": "JPN",
+  "sweden": "SWE",
+  "tunisia": "TUN",
+  "belgium": "BEL",
+  "egypt": "EGY",
+  "iran": "IRN", "ir iran": "IRN",
+  "new zealand": "NZL",
+  "spain": "ESP",
+  "cape verde": "CPV", "cabo verde": "CPV",
+  "saudi arabia": "KSA",
+  "uruguay": "URU",
+  "france": "FRA",
+  "senegal": "SEN",
+  "iraq": "IRQ",
+  "norway": "NOR",
+  "argentina": "ARG",
+  "austria": "AUT",
+  "jordan": "JOR",
+  "algeria": "ALG",
+  "portugal": "POR",
+  "democratic republic of the congo": "COD", "dr congo": "COD", "congo dr": "COD",
+  "uzbekistan": "UZB",
+  "colombia": "COL",
+  "england": "ENG",
+  "croatia": "CRO",
+  "ghana": "GHA",
+  "panama": "PAN"
+};
+
+// Bản đồ dịch mã đội bóng sang tên Tiếng Việt (để lưu vào KnockoutTeams)
+const TEAM_CODE_TO_VN = {
+  "MEX": "Mexico", "RSA": "Nam Phi", "KOR": "Hàn Quốc", "CZE": "CH Séc",
+  "CAN": "Canada", "BIH": "Bosnia", "QAT": "Qatar", "SUI": "Thụy Sĩ",
+  "BRA": "Brazil", "MAR": "Morocco", "HAI": "Haiti", "SCO": "Scotland",
+  "USA": "Mỹ", "PAR": "Paraguay", "AUS": "Úc", "TUR": "Thổ Nhĩ Kỳ",
+  "GER": "Đức", "CUW": "Curacao", "CIV": "Bờ Biển Ngà", "ECU": "Ecuador",
+  "NED": "Hà Lan", "JPN": "Nhật Bản", "SWE": "Thụy Điển", "TUN": "Tunisia",
+  "BEL": "Bỉ", "EGY": "Ai Cập", "IRN": "Iran", "NZL": "New Zealand",
+  "ESP": "Tây Ban Nha", "CPV": "Cabo Verde", "KSA": "Saudi Arabia", "URU": "Uruguay",
+  "FRA": "Pháp", "SEN": "Senegal", "IRQ": "Iraq", "NOR": "Na Uy",
+  "ARG": "Argentina", "AUT": "Áo", "JOR": "Jordan", "ALG": "Algeria",
+  "POR": "Bồ Đào Nha", "COD": "CHDC Congo", "UZB": "Uzbekistan", "COL": "Colombia",
+  "ENG": "Anh", "CRO": "Croatia", "GHA": "Ghana", "PAN": "Panama"
+};
+
+// Bản đồ các cặp đấu vòng bảng 1-72 (để tìm ID chính xác theo đội bóng)
+const GROUP_STAGE_PAIRINGS = {
+  "g1": ["MEX", "RSA"],
+  "g2": ["KOR", "CZE"],
+  "g3": ["CAN", "BIH"],
+  "g4": ["USA", "PAR"],
+  "g5": ["QAT", "SUI"],
+  "g6": ["BRA", "MAR"],
+  "g7": ["HAI", "SCO"],
+  "g8": ["AUS", "TUR"],
+  "g9": ["GER", "CUW"],
+  "g10": ["NED", "JPN"],
+  "g11": ["CIV", "ECU"],
+  "g12": ["SWE", "TUN"],
+  "g13": ["ESP", "CPV"],
+  "g14": ["BEL", "EGY"],
+  "g15": ["KSA", "URU"],
+  "g16": ["IRN", "NZL"],
+  "g17": ["FRA", "SEN"],
+  "g18": ["IRQ", "NOR"],
+  "g19": ["ARG", "ALG"],
+  "g20": ["AUT", "JOR"],
+  "g21": ["POR", "COD"],
+  "g22": ["ENG", "CRO"],
+  "g23": ["GHA", "PAN"],
+  "g24": ["UZB", "COL"],
+  "g25": ["CZE", "RSA"],
+  "g26": ["SUI", "BIH"],
+  "g27": ["CAN", "QAT"],
+  "g28": ["MEX", "KOR"],
+  "g29": ["USA", "AUS"],
+  "g30": ["SCO", "MAR"],
+  "g31": ["BRA", "HAI"],
+  "g32": ["TUR", "PAR"],
+  "g33": ["NED", "SWE"],
+  "g34": ["GER", "CIV"],
+  "g35": ["ECU", "CUW"],
+  "g36": ["TUN", "JPN"],
+  "g37": ["ESP", "KSA"],
+  "g38": ["BEL", "IRN"],
+  "g39": ["URU", "CPV"],
+  "g40": ["NZL", "EGY"],
+  "g41": ["ARG", "AUT"],
+  "g42": ["FRA", "IRQ"],
+  "g43": ["NOR", "SEN"],
+  "g44": ["JOR", "ALG"],
+  "g45": ["POR", "UZB"],
+  "g46": ["ENG", "GHA"],
+  "g47": ["PAN", "CRO"],
+  "g48": ["COL", "COD"],
+  "g49": ["BIH", "QAT"],
+  "g50": ["SUI", "CAN"],
+  "g51": ["MAR", "HAI"],
+  "g52": ["SCO", "BRA"],
+  "g53": ["RSA", "KOR"],
+  "g54": ["CZE", "MEX"],
+  "g55": ["CUW", "CIV"],
+  "g56": ["ECU", "GER"],
+  "g57": ["TUN", "NED"],
+  "g58": ["JPN", "SWE"],
+  "g59": ["TUR", "USA"],
+  "g60": ["PAR", "AUS"],
+  "g61": ["NOR", "FRA"],
+  "g62": ["SEN", "IRQ"],
+  "g63": ["CPV", "KSA"],
+  "g64": ["URU", "ESP"],
+  "g65": ["NZL", "BEL"],
+  "g66": ["EGY", "IRN"],
+  "g67": ["PAN", "ENG"],
+  "g68": ["CRO", "GHA"],
+  "g69": ["COL", "POR"],
+  "g70": ["COD", "UZB"],
+  "g71": ["ALG", "AUT"],
+  "g72": ["JOR", "ARG"]
+};
+
+// ─────────────────────────────────────────────────────────────
+//  HELPER: Lấy hoặc tạo mới một sheet theo tên
+// ─────────────────────────────────────────────────────────────
+function getOrCreateSheet(ss, name, headers) {
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    if (headers) sheet.appendRow(headers);
+  }
+  return sheet;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  doGet — Đọc dữ liệu gửi về React
+// ─────────────────────────────────────────────────────────────
 function doGet(e) {
+  var params = e ? (e.parameter || {}) : {};
+
+  // ── Gọi syncApi nếu yêu cầu đồng bộ tức thời từ Admin panel hoặc trigger ──
+  if (params.action === "syncApi" || params.syncApi === "true") {
+    try {
+      // Xóa ETag cache để ép buộc tải lại và cập nhật sơ đồ ánh xạ mới
+      var cache = CacheService.getScriptCache();
+      cache.remove("zafronix_etag");
+      
+      syncZafronixToSheets();
+    } catch (err) {
+      Logger.log("Lỗi đồng bộ thủ công Zafronix: " + err.toString());
+    }
+  }
+
+  // ── Nhánh verifyAccount: React gọi sau khi POST checkAccount ──
+  if (params.action === "verifyAccount") {
+    return handleVerifyAccount(params);
+  }
+
+  // ── Nhánh mặc định: Trả toàn bộ dữ liệu game ──
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   // 1. Đọc danh sách dự đoán (lấy bản ghi mới nhất của từng MA_USER)
   var predSheet = ss.getSheetByName("Predictions");
   var players = [];
   if (predSheet) {
     var data = predSheet.getDataRange().getValues();
     var latestUserPredictions = {};
-    
-    // Bỏ qua dòng tiêu đề (i = 0), duyệt từ dòng 1 đến hết
+
     for (var i = 1; i < data.length; i++) {
       var timestamp = data[i][0];
-      var maUser = data[i][1];
-      var ip = data[i][2];
-      var predJson = data[i][3];
-      
+      var maUser    = data[i][1];
+      var ip        = data[i][2];
+      var predJson  = data[i][3];
+
       if (maUser && predJson) {
-        // Chỉ lưu bản ghi có timestamp mới nhất
-        if (!latestUserPredictions[maUser] || new Date(timestamp) > new Date(latestUserPredictions[maUser].lastUpdated)) {
+        if (
+          !latestUserPredictions[maUser] ||
+          new Date(timestamp) > new Date(latestUserPredictions[maUser].lastUpdated)
+        ) {
           try {
             latestUserPredictions[maUser] = {
               id: maUser,
@@ -57,33 +251,30 @@ function doGet(e) {
               ip: ip,
               lastUpdated: new Date(timestamp).toISOString()
             };
-          } catch(e) {}
+          } catch (err) {}
         }
       }
     }
-    
-    // Chuyển object thành array
+
     players = Object.keys(latestUserPredictions).map(function(key) {
       return latestUserPredictions[key];
     });
   }
-  
+
   // 2. Đọc kết quả trận đấu thực tế
-  var matchSheet = ss.getSheetByName("Matches");
+  var matchSheet    = ss.getSheetByName("Matches");
   var matchesResults = {};
   if (matchSheet) {
     var mData = matchSheet.getDataRange().getValues();
     for (var j = 1; j < mData.length; j++) {
       var matchId = mData[j][0];
-      var result = mData[j][1];
-      if (matchId) {
-        matchesResults[matchId] = result || null;
-      }
+      var result  = mData[j][1];
+      if (matchId) matchesResults[matchId] = result || null;
     }
   }
-  
-  // 3. Đọc thông tin các đội chơi vòng loại trực tiếp
-  var koSheet = ss.getSheetByName("KnockoutTeams");
+
+  // 3. Đọc thông tin đội knockout
+  var koSheet      = ss.getSheetByName("KnockoutTeams");
   var knockoutTeams = {};
   if (koSheet) {
     var koData = koSheet.getDataRange().getValues();
@@ -91,8 +282,8 @@ function doGet(e) {
       var koMatchId = koData[k][0];
       if (koMatchId) {
         knockoutTeams[koMatchId] = {
-          teamA: koData[k][1] || "",
-          teamB: koData[k][2] || "",
+          teamA:     koData[k][1] || "",
+          teamB:     koData[k][2] || "",
           teamAName: koData[k][3] || "",
           teamBName: koData[k][4] || ""
         };
@@ -100,70 +291,111 @@ function doGet(e) {
     }
   }
 
-  // 4. Đọc trạng thái khóa trận đấu hoặc cấu hình điểm phạt
-  var lockSheet = ss.getSheetByName("LockedMatches");
+  // 4. Đọc trạng thái khóa & cấu hình điểm phạt
+  var lockSheet    = ss.getSheetByName("LockedMatches");
   var lockedMatches = {};
   if (lockSheet) {
     var lockData = lockSheet.getDataRange().getValues();
     for (var l = 1; l < lockData.length; l++) {
       var lockMatchId = lockData[l][0];
-      var val = lockData[l][1];
+      var val         = lockData[l][1];
       if (lockMatchId) {
-        if (val === "true" || val === true) {
-          lockedMatches[lockMatchId] = true;
-        } else if (val === "false" || val === false) {
-          lockedMatches[lockMatchId] = false;
-        } else {
-          // Giữ nguyên giá trị số/chuỗi cho cấu hình điểm phạt
-          lockedMatches[lockMatchId] = val;
-        }
+        if      (val === "true"  || val === true)  lockedMatches[lockMatchId] = true;
+        else if (val === "false" || val === false) lockedMatches[lockMatchId] = false;
+        else                                       lockedMatches[lockMatchId] = val;
       }
     }
   }
-  
-  // Trả về JSON kết quả
+
+  // 5. Đọc chi tiết trận đấu (thời tiết, trọng tài, bàn thắng, thẻ phạt...)
+  var detailsSheet = ss.getSheetByName("MatchesDetails");
+  var matchesDetails = {};
+  if (detailsSheet) {
+    var dData = detailsSheet.getDataRange().getValues();
+    for (var d = 1; d < dData.length; d++) {
+      var mId = dData[d][0];
+      var detailsJson = dData[d][1];
+      if (mId && detailsJson) {
+        try {
+          matchesDetails[mId] = JSON.parse(detailsJson);
+        } catch(e) {}
+      }
+    }
+  }
+
   var output = {
-    players: players,
+    players:        players,
     matchesResults: matchesResults,
-    knockoutTeams: knockoutTeams,
-    lockedMatches: lockedMatches
+    knockoutTeams:  knockoutTeams,
+    lockedMatches:  lockedMatches,
+    matchesDetails: matchesDetails
   };
-  
-  return ContentService.createTextOutput(JSON.stringify(output))
+
+  return ContentService
+    .createTextOutput(JSON.stringify(output))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Hàm xử lý yêu cầu POST: Nhận dữ liệu từ React gửi lên và ghi vào Sheets
+// ─────────────────────────────────────────────────────────────
+//  handleVerifyAccount — Kiểm tra kết quả đăng nhập (GET)
+// ─────────────────────────────────────────────────────────────
+function handleVerifyAccount(params) {
+  var maUser   = (params.ma_user   || "").trim().toUpperCase();
+  var password = (params.password  || "").trim();
+
+  if (!maUser || !password) {
+    return jsonResponse({ success: false, error: "Thiếu thông tin đăng nhập!" });
+  }
+
+  var ss           = SpreadsheetApp.getActiveSpreadsheet();
+  var accountSheet = getOrCreateSheet(ss, "Accounts", ["MA_USER", "PASSWORD", "CREATED_AT", "LAST_LOGIN"]);
+  var accData      = accountSheet.getDataRange().getValues();
+
+  for (var i = 1; i < accData.length; i++) {
+    if (String(accData[i][0]).trim().toUpperCase() === maUser) {
+      var storedPwd = String(accData[i][1]).trim();
+      if (storedPwd === password) {
+        accountSheet.getRange(i + 1, 4).setValue(new Date().toISOString());
+        return jsonResponse({ success: true, isFirstTime: false });
+      } else {
+        return jsonResponse({ success: false, error: "Mật khẩu không đúng. Vui lòng thử lại!" });
+      }
+    }
+  }
+
+  return jsonResponse({ success: false, error: "Tài khoản chưa được đăng ký. Vui lòng thử lại!" });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  doPost — Nhận dữ liệu từ React
+// ─────────────────────────────────────────────────────────────
 function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var payload;
-  
+
   try {
     payload = JSON.parse(e.postData.contents);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", message: "Invalid JSON"}))
-      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return jsonResponse({ status: "error", message: "Invalid JSON" });
   }
-  
+
   var action = payload.action;
-  
+
+  if (action === "checkAccount") {
+    return handleCheckAccount(ss, payload);
+  }
+
   if (action === "submitPrediction") {
-    // 1. Thêm dự đoán mới của người chơi
-    var predSheet = ss.getSheetByName("Predictions");
-    if (!predSheet) {
-      predSheet = ss.insertSheet("Predictions");
-    }
-    
-    // Ghi dòng mới: [Thời gian, Mã User, IP, JSON dự đoán]
+    var predSheet = getOrCreateSheet(ss, "Predictions", ["Timestamp", "MA_USER", "IP", "Predictions_JSON"]);
     predSheet.appendRow([
       payload.timestamp || new Date().toISOString(),
       payload.ma_user,
       payload.ip,
       JSON.stringify(payload.predictions)
     ]);
-    
-  } else if (action === "updateResults") {
-    // 2. Admin cập nhật kết quả trận đấu & danh sách đội knockout
+  }
+
+  else if (action === "updateResults") {
     var matchSheet = ss.getSheetByName("Matches");
     if (matchSheet) {
       matchSheet.clear();
@@ -172,25 +404,25 @@ function doPost(e) {
         matchSheet.appendRow([key, payload.matchesResults[key]]);
       });
     }
-    
+
     var koSheet = ss.getSheetByName("KnockoutTeams");
     if (koSheet) {
       koSheet.clear();
       koSheet.appendRow(["Match_Id", "Team_A", "Team_B", "Team_A_Name", "Team_B_Name"]);
       Object.keys(payload.knockoutTeams).forEach(function(key) {
-        var teamInfo = payload.knockoutTeams[key];
-        koSheet.appendRow([
-          key,
-          teamInfo.teamA,
-          teamInfo.teamB,
-          teamInfo.teamAName,
-          teamInfo.teamBName
-        ]);
+        var t = payload.knockoutTeams[key];
+        koSheet.appendRow([key, t.teamA, t.teamB, t.teamAName, t.teamBName]);
       });
     }
-    
-  } else if (action === "updateLocks") {
-    // 3. Admin cập nhật trạng thái khóa các trận đấu
+
+    var detailsSheet = ss.getSheetByName("MatchesDetails");
+    if (detailsSheet) {
+      detailsSheet.clear();
+      detailsSheet.appendRow(["Match_Id", "Details_JSON"]);
+    }
+  }
+
+  else if (action === "updateLocks") {
     var lockSheet = ss.getSheetByName("LockedMatches");
     if (lockSheet) {
       lockSheet.clear();
@@ -200,9 +432,397 @@ function doPost(e) {
       });
     }
   }
-  
-  return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+
+  return jsonResponse({ status: "success" });
+}
+
+function handleCheckAccount(ss, payload) {
+  var maUser   = (payload.ma_user  || "").trim().toUpperCase();
+  var password = (payload.password || "").trim();
+  var ip        = payload.ip        || "";
+  var timestamp = payload.timestamp || new Date().toISOString();
+
+  if (!maUser || !password) {
+    return jsonResponse({ status: "error", message: "Thiếu ma_user hoặc password!" });
+  }
+
+  var accountSheet = getOrCreateSheet(ss, "Accounts", ["MA_USER", "PASSWORD", "CREATED_AT", "LAST_LOGIN"]);
+  var accData      = accountSheet.getDataRange().getValues();
+
+  for (var i = 1; i < accData.length; i++) {
+    if (String(accData[i][0]).trim().toUpperCase() === maUser) {
+      return jsonResponse({ status: "exists" });
+    }
+  }
+
+  accountSheet.appendRow([maUser, password, timestamp, timestamp]);
+  return jsonResponse({ status: "registered" });
+}
+
+function jsonResponse(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ZAFRONIX SYNC FUNCTIONS (Đồng bộ từ Zafronix API)
+// ─────────────────────────────────────────────────────────────
+
+function fetchMatchesFromZafronix() {
+  var cache = CacheService.getScriptCache();
+  var cachedEtag = cache.get("zafronix_etag");
+  var keyIndex = parseInt(PropertiesService.getScriptProperties().getProperty("LAST_KEY_INDEX") || "0", 10);
+  
+  for (var attempt = 0; attempt < ZAFRONIX_API_KEYS.length; attempt++) {
+    var activeIndex = (keyIndex + attempt) % ZAFRONIX_API_KEYS.length;
+    var currentKey = ZAFRONIX_API_KEYS[activeIndex];
+    
+    var headers = {
+      "X-API-Key": currentKey
+    };
+    if (cachedEtag) {
+      headers["If-None-Match"] = cachedEtag;
+    }
+    
+    var options = {
+      "headers": headers,
+      "muteHttpExceptions": true
+    };
+    
+    try {
+      var url = "https://api.zafronix.com/fifa/worldcup/v1/matches?year=2026";
+      var response = UrlFetchApp.fetch(url, options);
+      var code = response.getResponseCode();
+      
+      if (code === 304) {
+        Logger.log("304 Not Modified (Không tốn quota API) dùng Key chỉ số: " + activeIndex);
+        PropertiesService.getScriptProperties().setProperty("LAST_KEY_INDEX", activeIndex.toString());
+        return { status: 304 };
+      }
+      
+      if (code === 200) {
+        Logger.log("200 OK (Cập nhật dữ liệu mới) dùng Key chỉ số: " + activeIndex);
+        PropertiesService.getScriptProperties().setProperty("LAST_KEY_INDEX", activeIndex.toString());
+        
+        var etag = response.getHeaders()["ETag"] || response.getHeaders()["etag"];
+        if (etag) {
+          cache.put("zafronix_etag", etag, 21600);
+        }
+        
+        return { status: 200, data: JSON.parse(response.getContentText()).data };
+      }
+      
+      if (code === 429) {
+        Logger.log("Key chỉ số " + activeIndex + " bị hết hạn mức (429). Đang thử key tiếp theo...");
+        continue;
+      }
+      
+      Logger.log("Key chỉ số " + activeIndex + " trả về lỗi khác: " + code);
+    } catch (e) {
+      Logger.log("Lỗi kết nối trên Key chỉ số " + activeIndex + ": " + e.toString());
+    }
+  }
+  
+  throw new Error("Tất cả các API Keys đều đã hết hạn mức hoặc lỗi!");
+}
+
+function cleanScorerName(name) {
+  if (!name) return "";
+  return name.replace(/\s+\d+(?:\+\d+)?'?\s*(og|o\.g|pen|penalty)\b/gi, '').trim();
+}
+
+function mapZafronixIdToLocalId(match) {
+  var matchNo = parseInt(match.id.split("-")[1], 10);
+  if (matchNo >= 1 && matchNo <= 72) {
+    var teamA_code = TEAM_NAME_TO_CODE[(match.homeTeam || "").toLowerCase().trim()] || match.homeTeam || "";
+    var teamB_code = TEAM_NAME_TO_CODE[(match.awayTeam || "").toLowerCase().trim()] || match.awayTeam || "";
+    
+    for (var key in GROUP_STAGE_PAIRINGS) {
+      var pair = GROUP_STAGE_PAIRINGS[key];
+      if ((pair[0] === teamA_code && pair[1] === teamB_code) ||
+          (pair[0] === teamB_code && pair[1] === teamA_code)) {
+        return key;
+      }
+    }
+    return null;
+  } else if (matchNo >= 73 && matchNo <= 88) {
+    return "r32_" + (matchNo - 72);
+  } else if (matchNo >= 89 && matchNo <= 96) {
+    return "r16_" + (matchNo - 88);
+  } else if (matchNo >= 97 && matchNo <= 100) {
+    return "qf_" + (matchNo - 96);
+  } else if (matchNo >= 101 && matchNo <= 102) {
+    return "sf_" + (matchNo - 100);
+  } else if (matchNo === 103) {
+    return "third_place";
+  } else if (matchNo === 104) {
+    return "final";
+  }
+  return null;
+}
+
+function syncZafronixToSheets() {
+  var apiResult = fetchMatchesFromZafronix();
+  if (apiResult.status === 304) {
+    return; 
+  }
+  
+  var matches = apiResult.data;
+  if (!matches || !Array.isArray(matches)) return;
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Chuẩn bị bảng Matches
+  var matchSheet = ss.getSheetByName("Matches");
+  if (!matchSheet) return;
+  var matchData = matchSheet.getDataRange().getValues();
+  var matchRows = {};
+  for (var i = 1; i < matchData.length; i++) {
+    var matchId = matchData[i][0];
+    if (matchId) matchRows[matchId] = i + 1;
+  }
+  
+  // 2. Chuẩn bị bảng KnockoutTeams
+  var koSheet = ss.getSheetByName("KnockoutTeams");
+  if (!koSheet) return;
+  var koData = koSheet.getDataRange().getValues();
+  var koRows = {};
+  for (var k = 1; k < koData.length; k++) {
+    var koId = koData[k][0];
+    if (koId) koRows[koId] = k + 1;
+  }
+  
+  // 3. Chuẩn bị bảng LockedMatches
+  var lockSheet = ss.getSheetByName("LockedMatches");
+  if (!lockSheet) return;
+  var lockData = lockSheet.getDataRange().getValues();
+  var lockRows = {};
+  for (var l = 1; l < lockData.length; l++) {
+    var lockKey = lockData[l][0];
+    if (lockKey) lockRows[lockKey] = l + 1;
+  }
+  
+  // Đọc danh sách tỉ số hiện có
+  var scoresObj = {};
+  if (lockRows["MATCHES_SCORES"]) {
+    try {
+      var existingScoresStr = lockData[lockRows["MATCHES_SCORES"] - 1][1];
+      if (existingScoresStr) {
+        scoresObj = JSON.parse(existingScoresStr);
+      }
+    } catch(e) {}
+  }
+
+  // 4. Chuẩn bị bảng MatchesDetails
+  var detailsSheet = getOrCreateSheet(ss, "MatchesDetails", ["Match_Id", "Details_JSON"]);
+  var detailsData = detailsSheet.getDataRange().getValues();
+  var detailsRows = {};
+  for (var d = 1; d < detailsData.length; d++) {
+    var detId = detailsData[d][0];
+    if (detId) detailsRows[detId] = d + 1;
+  }
+  
+  var hasChanges = false;
+  
+  matches.forEach(function(match) {
+    var localId = mapZafronixIdToLocalId(match);
+    if (!localId) return;
+    
+    var matchNo = parseInt(match.id.split("-")[1], 10);
+    
+    // Tìm mã code của hai đội
+    var teamA_code, teamB_code;
+    if (matchNo <= 72) {
+      var pair = GROUP_STAGE_PAIRINGS[localId];
+      if (pair) {
+        var apiHomeCode = TEAM_NAME_TO_CODE[(match.homeTeam || "").toLowerCase().trim()] || match.homeTeam || "";
+        if (apiHomeCode === pair[0]) {
+          teamA_code = pair[0];
+          teamB_code = pair[1];
+        } else if (apiHomeCode === pair[1]) {
+          teamA_code = pair[1];
+          teamB_code = pair[0];
+        } else {
+          teamA_code = pair[0];
+          teamB_code = pair[1];
+        }
+      } else {
+        teamA_code = TEAM_NAME_TO_CODE[(match.homeTeam || "").toLowerCase().trim()] || match.homeTeam || "";
+        teamB_code = TEAM_NAME_TO_CODE[(match.awayTeam || "").toLowerCase().trim()] || match.awayTeam || "";
+      }
+    } else {
+      teamA_code = TEAM_NAME_TO_CODE[(match.homeTeam || "").toLowerCase().trim()] || match.homeTeam || "";
+      teamB_code = TEAM_NAME_TO_CODE[(match.awayTeam || "").toLowerCase().trim()] || match.awayTeam || "";
+    }
+
+    // A. XỬ LÝ TỈ SỐ & KẾT QUẢ DỰ ĐOÁN
+    if (match.homeScore !== null && match.awayScore !== null) {
+      var homeScore = parseInt(match.homeScore);
+      var awayScore = parseInt(match.awayScore);
+      var scoreStr = homeScore + " - " + awayScore;
+      
+      var pen = match.penalties || match.penaltyShootout;
+      if (pen && pen.homeScore !== undefined && pen.homeScore !== null) {
+        scoreStr += " (Pen " + pen.homeScore + " - " + pen.awayScore + ")";
+      }
+      
+      if (scoresObj[localId] !== scoreStr) {
+        scoresObj[localId] = scoreStr;
+        hasChanges = true;
+      }
+      
+      var resultVal = null;
+      if (homeScore > awayScore) {
+        resultVal = "A";
+      } else if (homeScore < awayScore) {
+        resultVal = "B";
+      } else {
+        if (matchNo <= 72) {
+          resultVal = "D"; 
+        } else {
+          if (pen && pen.homeScore !== undefined) {
+            resultVal = (pen.homeScore > pen.awayScore) ? "A" : "B";
+          } else {
+            resultVal = "D";
+          }
+        }
+      }
+      
+      if (matchRows[localId]) {
+        var r = matchRows[localId];
+        if (matchData[r - 1][1] !== resultVal) {
+          matchSheet.getRange(r, 2).setValue(resultVal || "");
+          hasChanges = true;
+        }
+      } else {
+        matchSheet.appendRow([localId, resultVal || ""]);
+        hasChanges = true;
+      }
+    }
+    
+    // B. XỬ LÝ ĐỘI BÓNG VÒNG KNOCKOUT (Match 73 -> 104)
+    if (matchNo >= 73) {
+      var teamA_name = TEAM_CODE_TO_VN[teamA_code] || match.homeTeam || "";
+      var teamB_name = TEAM_CODE_TO_VN[teamB_code] || match.awayTeam || "";
+      
+      if (koRows[localId]) {
+        var kr = koRows[localId];
+        if (koData[kr - 1][1] !== teamA_code || koData[kr - 1][2] !== teamB_code || 
+            koData[kr - 1][3] !== teamA_name || koData[kr - 1][4] !== teamB_name) {
+          koSheet.getRange(kr, 2, 1, 4).setValues([[teamA_code, teamB_code, teamA_name, teamB_name]]);
+          hasChanges = true;
+        }
+      } else {
+        koSheet.appendRow([localId, teamA_code, teamB_code, teamA_name, teamB_name]);
+        hasChanges = true;
+      }
+    }
+
+    // C. XỬ LÝ CHI TIẾT TRẬN ĐẤU (THỜI TIẾT, TRỌNG TÀI, BÀN THẮNG, THẺ PHẠT...)
+    var cleanGoals = (match.goals || [])
+      .filter(function(g) {
+        return !g.provisional;
+      })
+      .map(function(g) {
+        var team = g.team;
+        if (team === 'home') team = teamA_code;
+        else if (team === 'away') team = teamB_code;
+        else {
+          var code = TEAM_NAME_TO_CODE[(team || "").toLowerCase().trim()];
+          if (code) team = code;
+        }
+        return {
+          minute: g.minute,
+          scorer: cleanScorerName(g.scorer),
+          assist: g.assist ? cleanScorerName(g.assist) : null,
+          type: g.type || null,
+          team: team
+        };
+      });
+
+    var cleanCards = (match.cards || [])
+      .filter(function(c) {
+        return !c.provisional;
+      })
+      .map(function(c) {
+        var team = c.team;
+        if (team === 'home') team = teamA_code;
+        else if (team === 'away') team = teamB_code;
+        else {
+          var code = TEAM_NAME_TO_CODE[(team || "").toLowerCase().trim()];
+          if (code) team = code;
+        }
+        return {
+          minute: c.minute,
+          player: cleanScorerName(c.player),
+          color: c.color,
+          team: team
+        };
+      });
+
+    var cleanSubs = (match.substitutions || [])
+      .filter(function(s) {
+        return !s.provisional;
+      })
+      .map(function(s) {
+        var team = s.team;
+        if (team === 'home') team = teamA_code;
+        else if (team === 'away') team = teamB_code;
+        else {
+          var code = TEAM_NAME_TO_CODE[(team || "").toLowerCase().trim()];
+          if (code) team = code;
+        }
+        return {
+          minute: s.minute,
+          player: cleanScorerName(s.player),
+          info: s.info ? { name: cleanScorerName(s.info.name || s.info) } : null,
+          team: team
+        };
+      });
+
+    var detailsObj = {
+      goals: cleanGoals,
+      cards: cleanCards,
+      substitutions: cleanSubs,
+      referee: match.referee || null,
+      weather: match.weather || null,
+      captains: match.captains || null,
+      penalties: match.penalties || match.penaltyShootout || null
+    };
+    var detailsJsonStr = JSON.stringify(detailsObj);
+    
+    if (detailsRows[localId]) {
+      var dr = detailsRows[localId];
+      if (detailsData[dr - 1][1] !== detailsJsonStr) {
+        detailsSheet.getRange(dr, 2).setValue(detailsJsonStr);
+        hasChanges = true;
+      }
+    } else {
+      detailsSheet.appendRow([localId, detailsJsonStr]);
+      hasChanges = true;
+    }
+  });
+  
+  if (hasChanges) {
+    var scoresStr = JSON.stringify(scoresObj);
+    if (lockRows["MATCHES_SCORES"]) {
+      lockSheet.getRange(lockRows["MATCHES_SCORES"], 2).setValue(scoresStr);
+    } else {
+      lockSheet.appendRow(["MATCHES_SCORES", scoresStr]);
+    }
+    
+    var syncTimeStr = new Date().toISOString();
+    if (lockRows["LAST_API_SYNC_TIME"]) {
+      lockSheet.getRange(lockRows["LAST_API_SYNC_TIME"], 2).setValue(syncTimeStr);
+    } else {
+      lockSheet.appendRow(["LAST_API_SYNC_TIME", syncTimeStr]);
+    }
+    
+    Logger.log("Đã đồng bộ kết quả mới thành công!");
+  } else {
+    Logger.log("Dữ liệu không có thay đổi gì mới.");
+  }
 }
 ```
 

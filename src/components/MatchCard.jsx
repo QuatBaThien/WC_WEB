@@ -1,9 +1,30 @@
 import React, { useState } from 'react';
-import { Card, Button, Tag, Space, Typography, Row, Col, Input, Badge, Modal, Tooltip, Avatar } from 'antd';
+import { Card, Button, Tag, Space, Typography, Row, Col, Input, Badge, Modal, Tooltip, Avatar, Tabs } from 'antd';
 import { TEAMS } from '../data/wcData';
 import { LockOutlined, UnlockOutlined, CheckCircleFilled, CloseCircleFilled, EnvironmentOutlined, CalendarOutlined, EditOutlined, RetweetOutlined, EyeOutlined, UserOutlined } from '@ant-design/icons';
 
 const { Text, Title } = Typography;
+
+const TEAM_NAME_TO_CODE = {
+  "mexico": "MEX", "south africa": "RSA", "south korea": "KOR", "korea republic": "KOR",
+  "czech republic": "CZE", "czechia": "CZE", "canada": "CAN", "bosnia and herzegovina": "BIH",
+  "bosnia": "BIH", "qatar": "QAT", "switzerland": "SUI", "brazil": "BRA", "morocco": "MAR",
+  "haiti": "HAI", "scotland": "SCO", "united states": "USA", "usa": "USA", "us": "USA",
+  "paraguay": "PAR", "australia": "AUS", "turkey": "TUR", "türkiye": "TUR", "germany": "GER",
+  "curacao": "CUW", "curaçao": "CUW", "ivory coast": "CIV", "côte d'ivoire": "CIV", "cote d'ivoire": "CIV",
+  "ecuador": "ECU", "netherlands": "NED", "japan": "JPN", "sweden": "SWE", "tunisia": "TUN",
+  "belgium": "BEL", "egypt": "EGY", "iran": "IRN", "ir iran": "IRN", "new zealand": "NZL",
+  "spain": "ESP", "cape verde": "CPV", "cabo verde": "CPV", "saudi arabia": "KSA", "uruguay": "URU",
+  "france": "FRA", "senegal": "SEN", "iraq": "IRQ", "norway": "NOR", "argentina": "ARG",
+  "austria": "AUT", "jordan": "JOR", "algeria": "ALG", "portugal": "POR", "democratic republic of the congo": "COD",
+  "dr congo": "COD", "congo dr": "COD", "uzbekistan": "UZB", "colombia": "COL", "england": "ENG",
+  "croatia": "CRO", "ghana": "GHA", "panama": "PAN"
+};
+
+const cleanScorerName = (name) => {
+  if (!name) return "";
+  return name.replace(/\s+\d+(?:\+\d+)?'?\s*(og|o\.g|pen|penalty)\b/gi, '').trim();
+};
 
 export default function MatchCard({
   match,
@@ -21,6 +42,27 @@ export default function MatchCard({
 
   const teamAName = teamAInfo ? teamAInfo.name : match.teamAName;
   const teamBName = teamBInfo ? teamBInfo.name : match.teamBName;
+
+  const homeGoals = [];
+  const awayGoals = [];
+  if (match.details && match.details.goals) {
+    match.details.goals
+      .filter(g => !g.provisional)
+      .forEach(g => {
+        const gTeamLower = (g.team || "").toLowerCase().trim();
+        const code = TEAM_NAME_TO_CODE[gTeamLower] || g.team;
+        const isHome = code === match.teamA || g.team === 'home' || gTeamLower.includes((teamAName || "").toLowerCase());
+        const cleanG = {
+          ...g,
+          scorer: cleanScorerName(g.scorer)
+        };
+        if (isHome) {
+          homeGoals.push(cleanG);
+        } else {
+          awayGoals.push(cleanG);
+        }
+      });
+  }
 
   // Lấy ảnh cờ từ FlagCDN
   const getFlagUrl = (teamInfo, placeholderText) => {
@@ -202,6 +244,27 @@ export default function MatchCard({
           </Text>
         </Col>
       </Row>
+
+      {/* Danh sách cầu thủ ghi bàn */}
+      {match.details && match.details.goals && match.details.goals.length > 0 && (
+        <Row style={{ marginBottom: 12, marginTop: -4, fontSize: '10px', color: '#94a3b8', lineHeight: '1.4' }}>
+          <Col span={11} style={{ textAlign: 'right', paddingRight: 10, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+            {homeGoals.map((g, idx) => (
+              <div key={idx} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {g.scorer} {g.minute}' {g.type === 'penalty' ? '(Pen)' : g.type === 'own_goal' ? '(OG)' : ''}
+              </div>
+            ))}
+          </Col>
+          <Col span={2} style={{ textAlign: 'center', opacity: 0.4 }}>⚽</Col>
+          <Col span={11} style={{ textAlign: 'left', paddingLeft: 10 }}>
+            {awayGoals.map((g, idx) => (
+              <div key={idx} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {g.scorer} {g.minute}' {g.type === 'penalty' ? '(Pen)' : g.type === 'own_goal' ? '(OG)' : ''}
+              </div>
+            ))}
+          </Col>
+        </Row>
+      )}
 
       {/* Info venue/date */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 12 }}>
@@ -412,6 +475,191 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
     }
   ];
 
+  const timelineEvents = [];
+  if (match.details) {
+    if (match.details.goals) {
+      match.details.goals
+        .filter(g => !g.provisional)
+        .forEach(g => {
+          const gTeamLower = (g.team || "").toLowerCase().trim();
+          const code = TEAM_NAME_TO_CODE[gTeamLower] || g.team;
+          const isHome = code === match.teamA || g.team === 'home';
+          timelineEvents.push({
+            minute: g.minute,
+            type: 'goal',
+            team: isHome ? 'home' : 'away',
+            title: cleanScorerName(g.scorer),
+            desc: g.assist ? `Kiến tạo: ${cleanScorerName(g.assist)}` : '',
+            goalType: g.type
+          });
+        });
+    }
+    if (match.details.cards) {
+      match.details.cards
+        .filter(c => !c.provisional)
+        .forEach(c => {
+          const cTeamLower = (c.team || "").toLowerCase().trim();
+          const code = TEAM_NAME_TO_CODE[cTeamLower] || c.team;
+          const isHome = code === match.teamA || c.team === 'home';
+          timelineEvents.push({
+            minute: c.minute,
+            type: 'card',
+            team: isHome ? 'home' : 'away',
+            title: cleanScorerName(c.player),
+            color: c.color
+          });
+        });
+    }
+    if (match.details.substitutions) {
+      match.details.substitutions
+        .filter(s => !s.provisional)
+        .forEach(s => {
+          const sTeamLower = (s.team || "").toLowerCase().trim();
+          const code = TEAM_NAME_TO_CODE[sTeamLower] || s.team;
+          const isHome = code === match.teamA || s.team === 'home';
+          timelineEvents.push({
+            minute: s.minute,
+            type: 'sub',
+            team: isHome ? 'home' : 'away',
+            title: `${s.info && s.info.name ? cleanScorerName(s.info.name) : 'Cầu thủ'} ↔ ${cleanScorerName(s.player) || ''}`
+          });
+        });
+    }
+    timelineEvents.sort((a, b) => a.minute - b.minute);
+  }
+
+  const pen = match.details && (match.details.penalties || match.details.penaltyShootout);
+
+  const matchInfoTab = (
+    <div style={{ color: '#cbd5e1' }}>
+      {match.details ? (
+        <>
+          {/* Thông tin chung */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 20,
+            fontSize: 12,
+            color: '#94a3b8',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8
+          }}>
+            <div>📍 <strong>Sân vận động:</strong> {match.venue}</div>
+            {match.details.referee && (
+              <div>🏁 <strong>Trọng tài:</strong> {match.details.referee.name} ({match.details.referee.country})</div>
+            )}
+            {match.details.weather && (
+              <div>🌤️ <strong>Thời tiết:</strong> {match.details.weather.tempC || match.details.weather.temp || 'N/A'}°C, độ ẩm {match.details.weather.humidity || 'N/A'}%, gió {match.details.weather.windKph || match.details.weather.wind || 'N/A'} km/h</div>
+            )}
+            {match.details.captains && (
+              <div>🎖️ <strong>Đội trưởng:</strong> {match.details.captains.home || 'Chưa rõ'} (đội A) • {match.details.captains.away || 'Chưa rõ'} (đội B)</div>
+            )}
+          </div>
+
+          {/* Dòng thời gian trận đấu */}
+          <div style={{ color: '#38bdf8', fontSize: 12, fontWeight: 'bold', marginBottom: 14, letterSpacing: 1 }}>
+            ⏱️ DIỄN BIẾN TRẬN ĐẤU (TIMELINE)
+          </div>
+
+          {timelineEvents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: '#475569', fontSize: 11 }}>
+              Không có sự kiện đặc biệt nào được ghi nhận.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto', paddingRight: 6 }}>
+              {timelineEvents.map((evt, idx) => {
+                const isHome = evt.team === 'home';
+                return (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: isHome ? 'flex-start' : 'flex-end', width: '100%' }}>
+                    <div style={{
+                      background: 'rgba(15, 23, 42, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      borderRadius: 10,
+                      padding: '6px 12px',
+                      maxWidth: '85%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flexDirection: isHome ? 'row' : 'row-reverse'
+                    }}>
+                      <span style={{ fontSize: 9, fontWeight: 'bold', color: '#38bdf8', background: 'rgba(56,189,248,0.1)', borderRadius: 4, padding: '2px 5px' }}>
+                        {evt.minute}'
+                      </span>
+                      {evt.type === 'goal' && (
+                        <>
+                          <span>⚽</span>
+                          <span style={{ fontWeight: 'bold', color: '#fff', fontSize: 11 }}>{evt.title}</span>
+                          {evt.desc && <span style={{ fontSize: 10, color: '#64748b' }}>({evt.desc})</span>}
+                          {evt.goalType === 'penalty' && <span style={{ fontSize: 9, color: '#fbbf24' }}>(Pen)</span>}
+                          {evt.goalType === 'own_goal' && <span style={{ fontSize: 9, color: '#ff4d4f' }}>(OG)</span>}
+                        </>
+                      )}
+                      {evt.type === 'card' && (
+                        <>
+                          <span style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 12,
+                            background: evt.color === 'yellow' ? '#ffd700' : '#ff4d4f',
+                            borderRadius: 1.5,
+                            boxShadow: `0 0 8px ${evt.color === 'yellow' ? 'rgba(255,215,0,0.4)' : 'rgba(255,77,79,0.4)'}`
+                          }} />
+                          <span style={{ color: '#e2e8f0', fontSize: 11 }}>{evt.title}</span>
+                        </>
+                      )}
+                      {evt.type === 'sub' && (
+                        <>
+                          <span style={{ color: '#52c41a' }}>🔄</span>
+                          <span style={{ color: '#94a3b8', fontSize: 11 }}>{evt.title}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sút luân lưu */}
+          {pen && pen.kicks && pen.kicks.length > 0 && (
+            <div style={{ marginTop: 20, padding: 12, background: 'rgba(251, 191, 36, 0.05)', border: '1px solid rgba(251, 191, 36, 0.15)', borderRadius: 12 }}>
+              <div style={{ color: '#fbbf24', fontSize: 12, fontWeight: 'bold', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🎯</span> SÚT LUÂN LƯU (PENALTY SHOOTOUT)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11 }}>
+                {pen.kicks.map((kick, kIdx) => {
+                  const kickTeamLower = (kick.team || "").toLowerCase().trim();
+                  const kickCode = TEAM_NAME_TO_CODE[kickTeamLower] || kick.team;
+                  const isHomeKick = kickCode === match.teamA || kick.team === 'home';
+                  return (
+                    <div key={kIdx} style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
+                      <span>Lượt {kick.order || (kIdx + 1)}: {kick.kicker} ({isHomeKick ? teamAName : teamBName})</span>
+                      <span style={{ fontWeight: 'bold', color: kick.success ? '#52c41a' : '#ff4d4f' }}>
+                        {kick.success ? 'Thành công' : 'Không thành công (' + (kick.outcome || 'Hỏng') + ')'}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div style={{ marginTop: 8, textAlign: 'center', fontWeight: 'bold', color: '#fff', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6 }}>
+                  Chung cuộc: {teamAName} {pen.homeScore} - {pen.awayScore} {teamBName}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#475569' }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>⏱️</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Chưa có thông số sự kiện trận đấu</div>
+          <div style={{ fontSize: 11, marginTop: 8, color: '#334155' }}>Dữ liệu chi tiết sẽ được cập nhật tự động khi trận đấu diễn ra!</div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Modal
       open={open}
@@ -442,10 +690,10 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
         borderBottom: '1px solid rgba(255,255,255,0.08)',
         padding: '24px 32px 20px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyBeweenn: 'space-between', marginBottom: 20, justifyContent: 'space-between' }}>
           <div style={{ background: 'rgba(56,189,248,0.2)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 10, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 0 15px rgba(56,189,248,0.2)' }}>
             <EyeOutlined style={{ color: '#38bdf8', fontSize: 16 }} />
-            <span style={{ color: '#38bdf8', fontSize: 12, fontWeight: 800, letterSpacing: 1.5 }}>PHÂN TÍCH DỰ ĐOÁN</span>
+            <span style={{ color: '#38bdf8', fontSize: 12, fontWeight: 800, letterSpacing: 1.5 }}>CHI TIẾT TRẬN ĐẤU</span>
           </div>
           {actualResult && (
             <Tag
@@ -469,8 +717,14 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: '#cbd5e1', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>VS</span>
-            <div style={{ width: 2, height: 24, background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.2), transparent)' }} />
+            {match.score ? (
+              <span style={{ fontSize: '18px', color: '#fff', fontWeight: 900, background: 'rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)' }}>{match.score}</span>
+            ) : (
+              <>
+                <span style={{ color: '#cbd5e1', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>VS</span>
+                <div style={{ width: 2, height: 24, background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.2), transparent)' }} />
+              </>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -484,114 +738,121 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
         </div>
       </div>
 
-      {/* Modal Body */}
-      <div style={{ padding: '24px 32px 32px' }}>
-        {/* Summary stats */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingBottom: 16, borderBottom: '1px dashed rgba(255,255,255,0.08)' }}>
-          <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>
-            TỔNG LƯỢT DỰ ĐOÁN
-          </span>
-          <div style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 24, padding: '4px 16px', boxShadow: '0 0 20px rgba(56,189,248,0.1)' }}>
-            <span style={{ color: '#38bdf8', fontSize: 16, fontWeight: 900 }}>{total}</span>
-            <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 6, fontWeight: 600 }}>NGƯỜI CHƠI</span>
-          </div>
-        </div>
-
-        {total === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#475569' }}>
-            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>📊</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Trận đấu này chưa có lượt dự đoán nào</div>
-            <div style={{ fontSize: 12, marginTop: 8, color: '#334155' }}>Hãy là người đầu tiên đưa ra nhận định!</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {bars.map((bar) => {
-              const isWinner = actualResult === bar.result;
-              return (
-                <div
-                  key={bar.result}
-                  style={{
-                    background: isWinner ? bar.bg : 'rgba(255,255,255,0.02)',
-                    border: isWinner ? `1px solid ${bar.color}60` : '1px solid rgba(255,255,255,0.05)',
-                    borderRadius: 16,
-                    padding: '16px 20px',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    transition: 'all 0.3s ease',
-                    boxShadow: isWinner ? `0 0 30px ${bar.glow}` : '0 4px 15px rgba(0,0,0,0.2)'
-                  }}
-                >
-                  {/* Label row */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: bar.color, fontSize: 14, fontWeight: 800, textShadow: `0 0 10px ${bar.glow}` }}>{bar.label}</span>
-                      {isWinner && (
-                        <Tag color="success" style={{ margin: 0, fontWeight: 800, borderRadius: 12, fontSize: 10, border: 'none' }}>CHÍNH XÁC</Tag>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                      <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600 }}>{bar.count} người</span>
-                      <span style={{
-                        fontSize: 20,
-                        fontWeight: 900,
-                        color: bar.pct > 0 ? bar.color : '#334155',
-                        minWidth: 50,
-                        textAlign: 'right',
-                        textShadow: bar.pct > 0 ? `0 0 15px ${bar.glow}` : 'none'
-                      }}>{bar.pct}%</span>
+      {/* Modal Body with Tabs */}
+      <div style={{ padding: '16px 24px 24px' }} className="details-modal-tabs">
+        <Tabs
+          defaultActiveKey="predictions"
+          centered
+          styles={{
+            tabBar: { borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: 20 }
+          }}
+          items={[
+            {
+              key: 'predictions',
+              label: <span style={{ fontSize: 12, fontWeight: 'bold' }}>📊 DỰ ĐOÁN ({total})</span>,
+              children: (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, paddingBottom: 12, borderBottom: '1px dashed rgba(255,255,255,0.08)' }}>
+                    <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
+                      TỔNG LƯỢT DỰ ĐOÁN
+                    </span>
+                    <div style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 24, padding: '2px 12px' }}>
+                      <span style={{ color: '#38bdf8', fontSize: 14, fontWeight: 900 }}>{total}</span>
+                      <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 4, fontWeight: 600 }}>NGƯỜI CHƠI</span>
                     </div>
                   </div>
 
-                  {/* Bar track */}
-                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 99, height: 10, overflow: 'hidden', marginBottom: bar.pickers.length > 0 ? 16 : 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${bar.pct}%`,
-                        background: `linear-gradient(90deg, ${bar.color}, ${bar.color}ee)`,
-                        borderRadius: 99,
-                        boxShadow: `0 0 12px ${bar.glow}`,
-                        transition: 'width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                      }}
-                    />
-                  </div>
+                  {total === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px 0', color: '#475569' }}>
+                      <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }}>📊</div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>Trận đấu này chưa có lượt dự đoán nào</div>
+                      <div style={{ fontSize: 11, marginTop: 6, color: '#334155' }}>Hãy là người đầu tiên đưa ra nhận định!</div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {bars.map((bar) => {
+                        const isWinner = actualResult === bar.result;
+                        return (
+                          <div
+                            key={bar.result}
+                            style={{
+                              background: isWinner ? bar.bg : 'rgba(255,255,255,0.02)',
+                              border: isWinner ? `1px solid ${bar.color}60` : '1px solid rgba(255,255,255,0.05)',
+                              borderRadius: 14,
+                              padding: '12px 16px',
+                              position: 'relative',
+                              overflow: 'hidden',
+                              boxShadow: isWinner ? `0 0 20px ${bar.glow}` : '0 4px 10px rgba(0,0,0,0.15)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ color: bar.color, fontSize: 13, fontWeight: 800 }}>{bar.label}</span>
+                                {isWinner && (
+                                  <Tag color="success" style={{ margin: 0, fontWeight: 800, borderRadius: 10, fontSize: 9, border: 'none' }}>TRÚNG</Tag>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                <span style={{ color: '#94a3b8', fontSize: 11 }}>{bar.count} người</span>
+                                <span style={{ fontSize: 16, fontWeight: 950, color: bar.pct > 0 ? bar.color : '#334155' }}>{bar.pct}%</span>
+                              </div>
+                            </div>
 
-                  {/* Pickers list */}
-                  {bar.pickers.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {bar.pickers.map(pid => (
-                        <Tooltip key={pid} title={pid}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            background: `linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))`,
-                            border: `1px solid rgba(255,255,255,0.06)`,
-                            borderRadius: 20,
-                            padding: '3px 10px 3px 3px',
-                            transition: 'all 0.2s hover:transform translateY(-2px)'
-                          }}>
-                            <Avatar size={20} style={{ backgroundColor: getAvatarColor(pid), fontSize: 10, fontWeight: 'bold' }}>
-                              {getInitials(pid)}
-                            </Avatar>
-                            <span style={{ color: '#cbd5e1', fontSize: 11, fontWeight: 600 }}>
-                              {pid}
-                            </span>
+                            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 99, height: 8, overflow: 'hidden', marginBottom: bar.pickers.length > 0 ? 12 : 0 }}>
+                              <div
+                                style={{
+                                  height: '100%',
+                                  width: `${bar.pct}%`,
+                                  background: bar.color,
+                                  borderRadius: 99,
+                                  boxShadow: `0 0 8px ${bar.glow}`
+                                }}
+                              />
+                            </div>
+
+                            {bar.pickers.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {bar.pickers.map(pid => (
+                                  <Tooltip key={pid} title={pid}>
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      background: `rgba(255,255,255,0.02)`,
+                                      border: `1px solid rgba(255,255,255,0.05)`,
+                                      borderRadius: 16,
+                                      padding: '2px 8px 2px 2px'
+                                    }}>
+                                      <Avatar size={18} style={{ backgroundColor: getAvatarColor(pid), fontSize: 9, fontWeight: 'bold' }}>
+                                        {getInitials(pid)}
+                                      </Avatar>
+                                      <span style={{ color: '#cbd5e1', fontSize: 10, fontWeight: 600 }}>
+                                        {pid}
+                                      </span>
+                                    </div>
+                                  </Tooltip>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </Tooltip>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
-                </div>
-              );
-            })}
-          </div>
-        )}
 
-        {/* Footer note */}
-        <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-          <span style={{ fontSize: 11, color: '#475569', fontWeight: 500, letterSpacing: 0.5 }}>Dữ liệu hiển thị dự đoán của tất cả người chơi (ẩn Admin)</span>
-        </div>
+                  <div style={{ marginTop: 20, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#475569', fontWeight: 500 }}>Dự đoán của người chơi (ẩn Admin)</span>
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'match_info',
+              label: <span style={{ fontSize: 12, fontWeight: 'bold' }}>⚽ THÔNG SỐ TRẬN ĐẤU</span>,
+              children: matchInfoTab
+            }
+          ]}
+        />
       </div>
     </Modal>
   );

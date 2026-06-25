@@ -331,7 +331,8 @@ export default function App() {
     if (!url) return;
     setLoading(true);
     try {
-      const response = await fetch(`${url}?t=${Date.now()}`);
+      const syncParam = forceApiSync ? '&syncApi=true' : '';
+      const response = await fetch(`${url}?t=${Date.now()}${syncParam}`);
       if (!response.ok) throw new Error('Response error');
       const data = await response.json();
       
@@ -358,7 +359,14 @@ export default function App() {
         });
       }
 
-      if (data.matchesResults || data.knockoutTeams) {
+      if (data.matchesDetails) {
+        resolvedMatches = resolvedMatches.map(m => ({
+          ...m,
+          details: data.matchesDetails[m.id] !== undefined ? data.matchesDetails[m.id] : (m.details || null)
+        }));
+      }
+
+      if (data.matchesResults || data.knockoutTeams || data.matchesDetails) {
         setMatches(resolvedMatches);
       }
 
@@ -406,216 +414,11 @@ export default function App() {
 
       setSheetConnected(true);
 
-      // --- AUTO SYNC API LOGIC ---
-      const lastSyncTimeStr = resolvedLocks['LAST_API_SYNC_TIME'];
-      const lastSyncTime = lastSyncTimeStr ? new Date(lastSyncTimeStr).getTime() : 0;
-      
-      // Tự động phát hiện dữ liệu lỗi (các trận tương lai chưa đá nhưng có tỉ số/kết quả)
-      const hasCorruptData = resolvedMatches.some(m => {
-        const isFuture = new Date(m.date).getTime() > Date.now();
-        return isFuture && (m.score !== null || m.result !== null);
-      });
-
-      if (forceApiSync || hasCorruptData || Date.now() - lastSyncTime >= 300000) {
-        autoSyncApiResults(resolvedMatches, resolvedLocks, url);
-      }
-
     } catch (err) {
       console.error(err);
       setSheetConnected(false);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const autoSyncApiResults = async (currentMatches, currentLocks, sheetUrlToUse) => {
-    try {
-      const res = await fetch('https://worldcup26.ir/get/games');
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data || !data.games) return;
-      
-      let updatedMatches = [...currentMatches];
-      let hasChanges = false;
-      
-      let scoresObj = {};
-      try {
-        if (currentLocks['MATCHES_SCORES']) {
-          scoresObj = JSON.parse(currentLocks['MATCHES_SCORES']);
-        }
-      } catch(e) {}
-      
-      const API_TEAM_CODE_MAP = {
-        "Mexico": "MEX", "South Africa": "RSA", "South Korea": "KOR", "Czech Republic": "CZE", 
-        "Canada": "CAN", "Bosnia and Herzegovina": "BIH", "United States": "USA", "Paraguay": "PAR",
-        "Haiti": "HAI", "Scotland": "SCO", "Australia": "AUS", "Turkey": "TUR", "Brazil": "BRA",
-        "Morocco": "MAR", "Qatar": "QAT", "Switzerland": "SUI", "Ivory Coast": "CIV", "Ecuador": "ECU",
-        "Germany": "GER", "Curaçao": "CUW", "Netherlands": "NED", "Japan": "JPN", "Sweden": "SWE",
-        "Tunisia": "TUN", "Iran": "IRN", "New Zealand": "NZL", "Spain": "ESP", "Cape Verde": "CPV",
-        "Belgium": "BEL", "Egypt": "EGY", "Saudi Arabia": "KSA", "Uruguay": "URU", "France": "FRA",
-        "Senegal": "SEN", "Iraq": "IRQ", "Norway": "NOR", "Argentina": "ARG", "Algeria": "ALG",
-        "Austria": "AUT", "Jordan": "JOR", "Portugal": "POR", "Democratic Republic of the Congo": "COD",
-        "England": "ENG", "Croatia": "CRO", "Uzbekistan": "UZB", "Colombia": "COL", "Ghana": "GHA",
-        "Panama": "PAN"
-      };
-      
-      data.games.forEach((game) => {
-        const apiId = parseInt(game.id);
-        let matchingMatchIndex = -1;
-
-        if (game.type === 'group' || apiId <= 72) {
-          if (game.home_team_name_en && game.away_team_name_en && game.home_team_name_en !== "null" && game.away_team_name_en !== "null") {
-            const teamCodeA = API_TEAM_CODE_MAP[game.home_team_name_en];
-            const teamCodeB = API_TEAM_CODE_MAP[game.away_team_name_en];
-            if (teamCodeA && teamCodeB) {
-              matchingMatchIndex = updatedMatches.findIndex(m => 
-                m.stage === 'group' && 
-                ((m.teamA === teamCodeA && m.teamB === teamCodeB) || (m.teamA === teamCodeB && m.teamB === teamCodeA))
-              );
-            }
-          }
-        } else {
-          if (apiId >= 73 && apiId <= 88) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `r32_${apiId - 72}`);
-          else if (apiId >= 89 && apiId <= 96) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `r16_${apiId - 88}`);
-          else if (apiId >= 97 && apiId <= 100) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `qf_${apiId - 96}`);
-          else if (apiId >= 101 && apiId <= 102) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `sf_${apiId - 100}`);
-          else if (apiId === 103) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `third_place`);
-          else if (apiId === 104) matchingMatchIndex = updatedMatches.findIndex(m => m.id === `final`);
-        }
-
-        if (matchingMatchIndex === -1) return;
-        
-        let matchChanged = false;
-        const currentM = { ...updatedMatches[matchingMatchIndex] };
-
-        let isApiHomeTeamA = true;
-        
-        if (currentM.stage === 'group') {
-           isApiHomeTeamA = currentM.teamA === API_TEAM_CODE_MAP[game.home_team_name_en];
-        } else {
-           if (game.home_team_name_en && game.home_team_name_en !== "null" && game.home_team_id !== "0") {
-             const teamCodeA = API_TEAM_CODE_MAP[game.home_team_name_en];
-             if (teamCodeA && currentM.teamA !== teamCodeA) {
-               currentM.teamA = teamCodeA;
-               currentM.teamAName = game.home_team_name_en;
-               matchChanged = true;
-             }
-           }
-           if (game.away_team_name_en && game.away_team_name_en !== "null" && game.away_team_id !== "0") {
-             const teamCodeB = API_TEAM_CODE_MAP[game.away_team_name_en];
-             if (teamCodeB && currentM.teamB !== teamCodeB) {
-               currentM.teamB = teamCodeB;
-               currentM.teamBName = game.away_team_name_en;
-               matchChanged = true;
-             }
-           }
-        }
-
-        const isNotStarted = game.time_elapsed === "notstarted";
-
-        if (isNotStarted) {
-          if (currentM.score !== null || scoresObj[currentM.id] !== undefined || currentM.result !== null) {
-            currentM.score = null;
-            delete scoresObj[currentM.id];
-            currentM.result = null;
-            matchChanged = true;
-          }
-        } else {
-          const homeScoreRaw = game.home_score;
-          const awayScoreRaw = game.away_score;
-          const hasScore = homeScoreRaw !== null && homeScoreRaw !== undefined && homeScoreRaw !== "" && homeScoreRaw !== "null";
-          
-          if (hasScore) {
-            const home = parseInt(homeScoreRaw);
-            const away = parseInt(awayScoreRaw);
-            const scoreA = isApiHomeTeamA ? home : away;
-            const scoreB = isApiHomeTeamA ? away : home;
-            const newScoreStr = `${scoreA} - ${scoreB}`;
-            
-            if (scoresObj[currentM.id] !== newScoreStr || currentM.score !== newScoreStr) {
-              currentM.score = newScoreStr;
-              scoresObj[currentM.id] = newScoreStr;
-              matchChanged = true;
-            }
-
-            if (game.finished === "TRUE") {
-              let newResult = null;
-              if (scoreA > scoreB) newResult = 'A';
-              else if (scoreA < scoreB) newResult = 'B';
-              else newResult = 'D';
-              
-              if (currentM.result !== newResult) {
-                currentM.result = newResult;
-                matchChanged = true;
-              }
-            } else {
-              if (currentM.result !== null) {
-                currentM.result = null;
-                matchChanged = true;
-              }
-            }
-          }
-        }
-
-        if (matchChanged) {
-          updatedMatches[matchingMatchIndex] = currentM;
-          hasChanges = true;
-        }
-      });
-      
-      if (hasChanges) {
-        setMatches(updatedMatches);
-        
-        const results = {};
-        const koTeams = {};
-        updatedMatches.forEach(m => {
-          if (m.result !== null) results[m.id] = m.result;
-          if (m.stage !== 'group') {
-            koTeams[m.id] = {
-              teamAName: m.teamAName,
-              teamBName: m.teamBName,
-              teamA: m.teamA,
-              teamB: m.teamB
-            };
-          }
-        });
-        
-        if (sheetUrlToUse) {
-          await fetch(sheetUrlToUse, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'updateResults',
-              matchesResults: results,
-              knockoutTeams: koTeams
-            })
-          });
-        }
-      }
-      
-      const newSyncTime = new Date().toISOString();
-      const updatedLocks = { 
-        ...currentLocks, 
-        'LAST_API_SYNC_TIME': newSyncTime,
-        'MATCHES_SCORES': JSON.stringify(scoresObj)
-      };
-      setLockedMatches(updatedLocks);
-      
-      if (sheetUrlToUse) {
-        await fetch(sheetUrlToUse, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({
-            action: 'updateLocks',
-            lockedMatches: updatedLocks
-          })
-        });
-      }
-      
-    } catch (err) {
-      console.error("Auto sync error:", err);
     }
   };
 
