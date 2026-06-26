@@ -70,6 +70,13 @@ const alignFollowersPredictions = (playersList, matchesList, locks) => {
   });
 };
 
+// --- HELPER FUNCTION: GET VALID KNOCKOUT TEAM VALUE OR FALLBACK ---
+const getValidKnockoutVal = (val, fallback) => {
+  if (val === undefined || val === null) return fallback;
+  const str = String(val).trim();
+  return str !== "" ? str : fallback;
+};
+
 export default function App() {
   // --- STATE ---
   const [matches, setMatches] = useState(() => {
@@ -91,10 +98,10 @@ export default function App() {
         if (m.stage !== 'group' && koTeams[m.id]) {
           return {
             ...m,
-            teamAName: koTeams[m.id].teamAName || m.teamAName,
-            teamBName: koTeams[m.id].teamBName || m.teamBName,
-            teamA: koTeams[m.id].teamA || m.teamA,
-            teamB: koTeams[m.id].teamB || m.teamB
+            teamAName: getValidKnockoutVal(koTeams[m.id].teamAName, m.teamAName),
+            teamBName: getValidKnockoutVal(koTeams[m.id].teamBName, m.teamBName),
+            teamA: getValidKnockoutVal(koTeams[m.id].teamA, m.teamA),
+            teamB: getValidKnockoutVal(koTeams[m.id].teamB, m.teamB)
           };
         }
         return m;
@@ -123,10 +130,10 @@ export default function App() {
         result: results[m.id] !== undefined ? results[m.id] : m.result
       };
       if (m.stage !== 'group' && koTeams[m.id]) {
-        u.teamAName = koTeams[m.id].teamAName || m.teamAName;
-        u.teamBName = koTeams[m.id].teamBName || m.teamBName;
-        u.teamA = koTeams[m.id].teamA || m.teamA;
-        u.teamB = koTeams[m.id].teamB || m.teamB;
+        u.teamAName = getValidKnockoutVal(koTeams[m.id].teamAName, m.teamAName);
+        u.teamBName = getValidKnockoutVal(koTeams[m.id].teamBName, m.teamBName);
+        u.teamA = getValidKnockoutVal(koTeams[m.id].teamA, m.teamA);
+        u.teamB = getValidKnockoutVal(koTeams[m.id].teamB, m.teamB);
       }
       return u;
     });
@@ -347,12 +354,13 @@ export default function App() {
       if (data.knockoutTeams) {
         resolvedMatches = resolvedMatches.map(m => {
           if (m.stage !== 'group' && data.knockoutTeams[m.id]) {
+            const ko = data.knockoutTeams[m.id];
             return {
               ...m,
-              teamAName: data.knockoutTeams[m.id].teamAName || m.teamAName,
-              teamBName: data.knockoutTeams[m.id].teamBName || m.teamBName,
-              teamA: data.knockoutTeams[m.id].teamA || m.teamA,
-              teamB: data.knockoutTeams[m.id].teamB || m.teamB
+              teamAName: getValidKnockoutVal(ko.teamAName, m.teamAName),
+              teamBName: getValidKnockoutVal(ko.teamBName, m.teamBName),
+              teamA: getValidKnockoutVal(ko.teamA, m.teamA),
+              teamB: getValidKnockoutVal(ko.teamB, m.teamB)
             };
           }
           return m;

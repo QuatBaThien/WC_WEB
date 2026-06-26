@@ -211,6 +211,7 @@ function doGet(e) {
       // Xóa ETag cache để ép buộc tải lại và cập nhật sơ đồ ánh xạ mới
       var cache = CacheService.getScriptCache();
       cache.remove("zafronix_etag");
+      cache.remove("zafronix_bracket_etag");
       
       syncZafronixToSheets();
     } catch (err) {
@@ -527,6 +528,98 @@ function fetchMatchesFromZafronix() {
   throw new Error("Tất cả các API Keys đều đã hết hạn mức hoặc lỗi!");
 }
 
+function fetchBracketFromZafronix() {
+  var cache = CacheService.getScriptCache();
+  var cachedEtag = cache.get("zafronix_bracket_etag");
+  var keyIndex = parseInt(PropertiesService.getScriptProperties().getProperty("LAST_KEY_INDEX") || "0", 10);
+  
+  for (var attempt = 0; attempt < ZAFRONIX_API_KEYS.length; attempt++) {
+    var activeIndex = (keyIndex + attempt) % ZAFRONIX_API_KEYS.length;
+    var currentKey = ZAFRONIX_API_KEYS[activeIndex];
+    
+    var headers = {
+      "X-API-Key": currentKey
+    };
+    if (cachedEtag) {
+      headers["If-None-Match"] = cachedEtag;
+    }
+    
+    var options = {
+      "headers": headers,
+      "muteHttpExceptions": true
+    };
+    
+    try {
+      var url = "https://api.zafronix.com/fifa/worldcup/v1/bracket?year=2026";
+      var response = UrlFetchApp.fetch(url, options);
+      var code = response.getResponseCode();
+      
+      if (code === 304) {
+        Logger.log("Bracket 304 Not Modified");
+        PropertiesService.getScriptProperties().setProperty("LAST_KEY_INDEX", activeIndex.toString());
+        return { status: 304 };
+      }
+      
+      if (code === 200) {
+        Logger.log("Bracket 200 OK");
+        PropertiesService.getScriptProperties().setProperty("LAST_KEY_INDEX", activeIndex.toString());
+        
+        var etag = response.getHeaders()["ETag"] || response.getHeaders()["etag"];
+        if (etag) {
+          cache.put("zafronix_bracket_etag", etag, 21600);
+        }
+        
+        return { status: 200, stages: JSON.parse(response.getContentText()).stages };
+      }
+      
+      if (code === 429) continue;
+    } catch (e) {
+      Logger.log("Lỗi fetch bracket: " + e.toString());
+    }
+  }
+  return { status: 500 };
+}
+
+function fetchMatchesFromZafronixRaw() {
+  var keyIndex = parseInt(PropertiesService.getScriptProperties().getProperty("LAST_KEY_INDEX") || "0", 10);
+  for (var attempt = 0; attempt < ZAFRONIX_API_KEYS.length; attempt++) {
+    var activeIndex = (keyIndex + attempt) % ZAFRONIX_API_KEYS.length;
+    var currentKey = ZAFRONIX_API_KEYS[activeIndex];
+    var options = {
+      "headers": { "X-API-Key": currentKey },
+      "muteHttpExceptions": true
+    };
+    try {
+      var url = "https://api.zafronix.com/fifa/worldcup/v1/matches?year=2026";
+      var response = UrlFetchApp.fetch(url, options);
+      if (response.getResponseCode() === 200) {
+        return JSON.parse(response.getContentText()).data;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+function fetchBracketFromZafronixRaw() {
+  var keyIndex = parseInt(PropertiesService.getScriptProperties().getProperty("LAST_KEY_INDEX") || "0", 10);
+  for (var attempt = 0; attempt < ZAFRONIX_API_KEYS.length; attempt++) {
+    var activeIndex = (keyIndex + attempt) % ZAFRONIX_API_KEYS.length;
+    var currentKey = ZAFRONIX_API_KEYS[activeIndex];
+    var options = {
+      "headers": { "X-API-Key": currentKey },
+      "muteHttpExceptions": true
+    };
+    try {
+      var url = "https://api.zafronix.com/fifa/worldcup/v1/bracket?year=2026";
+      var response = UrlFetchApp.fetch(url, options);
+      if (response.getResponseCode() === 200) {
+        return JSON.parse(response.getContentText()).stages;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
 function cleanScorerName(name) {
   if (!name) return "";
   return name.replace(/\s+\d+(?:\+\d+)?'?\s*(og|o\.g|pen|penalty)\b/gi, '').trim();
@@ -562,14 +655,66 @@ function mapZafronixIdToLocalId(match) {
   return null;
 }
 
+// Bản đồ thông tin mặc định (placeholders) vòng Knockout
+const DEFAULT_KNOCKOUT_TEAMS = {
+  "r32_1": { teamA: "1_1", teamB: "2_1", teamAName: "Á quân Bảng A", teamBName: "Á quân Bảng B" },
+  "r32_4": { teamA: "1_4", teamB: "2_4", teamAName: "Nhất Bảng C", teamBName: "Á quân Bảng F" },
+  "r32_2": { teamA: "1_2", teamB: "2_2", teamAName: "Nhất Bảng E", teamBName: "Hạng 3 A/B/C/D/F" },
+  "r32_3": { teamA: "1_3", teamB: "2_3", teamAName: "Nhất Bảng F", teamBName: "Á quân Bảng C" },
+  "r32_6": { teamA: "1_6", teamB: "2_6", teamAName: "Á quân Bảng E", teamBName: "Á quân Bảng I" },
+  "r32_5": { teamA: "1_5", teamB: "2_5", teamAName: "Nhất Bảng I", teamBName: "Hạng 3 C/D/F/G/H" },
+  "r32_7": { teamA: "1_7", teamB: "2_7", teamAName: "Nhất Bảng A", teamBName: "Hạng 3 C/E/F/H/I" },
+  "r32_8": { teamA: "1_8", teamB: "2_8", teamAName: "Nhất Bảng L", teamBName: "Hạng 3 E/H/I/J/K" },
+  "r32_11": { teamA: "1_11", teamB: "2_11", teamAName: "Nhất Bảng G", teamBName: "Hạng 3 A/E/H/I/J" },
+  "r32_10": { teamA: "1_10", teamB: "2_10", teamAName: "Nhất Bảng D", teamBName: "Hạng 3 B/E/F/I/J" },
+  "r32_12": { teamA: "1_12", teamB: "2_12", teamAName: "Nhất Bảng H", teamBName: "Á quân Bảng J" },
+  "r32_9": { teamA: "1_9", teamB: "2_9", teamAName: "Á quân Bảng K", teamBName: "Á quân Bảng L" },
+  "r32_13": { teamA: "1_13", teamB: "2_13", teamAName: "Nhất Bảng B", teamBName: "Hạng 3 E/F/G/I/J" },
+  "r32_16": { teamA: "1_16", teamB: "2_16", teamAName: "Á quân Bảng D", teamBName: "Á quân Bảng G" },
+  "r32_14": { teamA: "1_14", teamB: "2_14", teamAName: "Nhất Bảng J", teamBName: "Á quân Bảng H" },
+  "r32_15": { teamA: "1_15", teamB: "2_15", teamAName: "Nhất Bảng K", teamBName: "Hạng 3 D/E/I/J/L" },
+  "r16_2": { teamA: "W32_3", teamB: "W32_4", teamAName: "Thắng 73", teamBName: "Thắng 75" },
+  "r16_1": { teamA: "W32_1", teamB: "W32_2", teamAName: "Thắng 74", teamBName: "Thắng 77" },
+  "r16_3": { teamA: "W32_5", teamB: "W32_6", teamAName: "Thắng 76", teamBName: "Thắng 78" },
+  "r16_4": { teamA: "W32_7", teamB: "W32_8", teamAName: "Thắng 79", teamBName: "Thắng 80" },
+  "r16_5": { teamA: "W32_9", teamB: "W32_10", teamAName: "Thắng 83", teamBName: "Thắng 84" },
+  "r16_6": { teamA: "W32_11", teamB: "W32_12", teamAName: "Thắng 81", teamBName: "Thắng 82" },
+  "r16_7": { teamA: "W32_13", teamB: "W32_14", teamAName: "Thắng 86", teamBName: "Thắng 88" },
+  "r16_8": { teamA: "W32_15", teamB: "W32_16", teamAName: "Thắng 85", teamBName: "Thắng 87" },
+  "qf_1": { teamA: "W16_1", teamB: "W16_2", teamAName: "Thắng 89", teamBName: "Thắng 90" },
+  "qf_2": { teamA: "W16_3", teamB: "W16_4", teamAName: "Thắng 93", teamBName: "Thắng 94" },
+  "qf_3": { teamA: "W16_5", teamB: "W16_6", teamAName: "Thắng 91", teamBName: "Thắng 92" },
+  "qf_4": { teamA: "W16_7", teamB: "W16_8", teamAName: "Thắng 95", teamBName: "Thắng 96" },
+  "sf_1": { teamA: "WQF_1", teamB: "WQF_2", teamAName: "Thắng 97", teamBName: "Thắng 98" },
+  "sf_2": { teamA: "WQF_3", teamB: "WQF_4", teamAName: "Thắng 99", teamBName: "Thắng 100" },
+  "third_place": { teamA: "LSF_1", teamB: "LSF_2", teamAName: "Thua 101", teamBName: "Thua 102" },
+  "final": { teamA: "WSF_1", teamB: "WSF_2", teamAName: "Thắng 101", teamBName: "Thắng 102" }
+};
+
 function syncZafronixToSheets() {
   var apiResult = fetchMatchesFromZafronix();
-  if (apiResult.status === 304) {
+  var bracketResult = fetchBracketFromZafronix();
+  
+  // Nếu cả hai đều không đổi thì dừng
+  if (apiResult.status === 304 && (!bracketResult || bracketResult.status === 304)) {
     return; 
   }
   
-  var matches = apiResult.data;
-  if (!matches || !Array.isArray(matches)) return;
+  var matches = apiResult.status === 200 ? apiResult.data : fetchMatchesFromZafronixRaw();
+  var stages = (bracketResult && bracketResult.status === 200) ? bracketResult.stages : fetchBracketFromZafronixRaw();
+  
+  if (!matches || !Array.isArray(matches) || !stages) return;
+  
+  // Dựng bản đồ trận đấu từ Bracket API để tra cứu winner vòng knockout
+  var bracketMatches = {};
+  for (var stageKey in stages) {
+    var stageList = stages[stageKey];
+    if (stageList && Array.isArray(stageList)) {
+      stageList.forEach(function(bm) {
+        bracketMatches[bm.matchId] = bm;
+      });
+    }
+  }
   
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
@@ -630,6 +775,7 @@ function syncZafronixToSheets() {
     if (!localId) return;
     
     var matchNo = parseInt(match.id.split("-")[1], 10);
+    var bMatch = bracketMatches[match.id]; // Tìm thông tin tương ứng bên bracket
     
     // Tìm mã code của hai đội
     var teamA_code, teamB_code;
@@ -652,8 +798,11 @@ function syncZafronixToSheets() {
         teamB_code = TEAM_NAME_TO_CODE[(match.awayTeam || "").toLowerCase().trim()] || match.awayTeam || "";
       }
     } else {
-      teamA_code = TEAM_NAME_TO_CODE[(match.homeTeam || "").toLowerCase().trim()] || match.homeTeam || "";
-      teamB_code = TEAM_NAME_TO_CODE[(match.awayTeam || "").toLowerCase().trim()] || match.awayTeam || "";
+      var homeTeamName = (bMatch && bMatch.home) ? bMatch.home : (match.homeTeam || "");
+      var awayTeamName = (bMatch && bMatch.away) ? bMatch.away : (match.awayTeam || "");
+      
+      teamA_code = TEAM_NAME_TO_CODE[homeTeamName.toLowerCase().trim()] || homeTeamName || "";
+      teamB_code = TEAM_NAME_TO_CODE[awayTeamName.toLowerCase().trim()] || awayTeamName || "";
     }
 
     // A. XỬ LÝ TỈ SỐ & KẾT QUẢ DỰ ĐOÁN
@@ -681,10 +830,16 @@ function syncZafronixToSheets() {
         if (matchNo <= 72) {
           resultVal = "D"; 
         } else {
-          if (pen && pen.homeScore !== undefined) {
-            resultVal = (pen.homeScore > pen.awayScore) ? "A" : "B";
+          // Vòng loại trực tiếp: dùng trường winner từ Bracket API để phân định chính xác đội đi tiếp
+          if (bMatch && bMatch.winner) {
+            var winnerCode = TEAM_NAME_TO_CODE[(bMatch.winner || "").toLowerCase().trim()] || bMatch.winner || "";
+            resultVal = (winnerCode === teamA_code) ? "A" : "B";
           } else {
-            resultVal = "D";
+            if (pen && pen.homeScore !== undefined) {
+              resultVal = (pen.homeScore > pen.awayScore) ? "A" : "B";
+            } else {
+              resultVal = "D";
+            }
           }
         }
       }
@@ -703,18 +858,34 @@ function syncZafronixToSheets() {
     
     // B. XỬ LÝ ĐỘI BÓNG VÒNG KNOCKOUT (Match 73 -> 104)
     if (matchNo >= 73) {
-      var teamA_name = TEAM_CODE_TO_VN[teamA_code] || match.homeTeam || "";
-      var teamB_name = TEAM_CODE_TO_VN[teamB_code] || match.awayTeam || "";
+      var defaultMatch = DEFAULT_KNOCKOUT_TEAMS[localId] || {};
+      
+      var existingTeamA = koRows[localId] ? koData[koRows[localId] - 1][1] : "";
+      var existingTeamB = koRows[localId] ? koData[koRows[localId] - 1][2] : "";
+      var existingTeamAName = koRows[localId] ? koData[koRows[localId] - 1][3] : "";
+      var existingTeamBName = koRows[localId] ? koData[koRows[localId] - 1][4] : "";
+
+      var homeTeamName = (bMatch && bMatch.home) ? bMatch.home : (match.homeTeam || "");
+      var awayTeamName = (bMatch && bMatch.away) ? bMatch.away : (match.awayTeam || "");
+
+      var teamA_name = TEAM_CODE_TO_VN[teamA_code] || homeTeamName || "";
+      var teamB_name = TEAM_CODE_TO_VN[teamB_code] || awayTeamName || "";
+
+      // Giữ lại dữ liệu hiện có trong sheet hoặc dùng mặc định nếu API trả về trống (chưa đấu xong vòng bảng)
+      var finalTeamA = teamA_code || existingTeamA || defaultMatch.teamA || "";
+      var finalTeamB = teamB_code || existingTeamB || defaultMatch.teamB || "";
+      var finalTeamAName = teamA_name || existingTeamAName || defaultMatch.teamAName || "";
+      var finalTeamBName = teamB_name || existingTeamBName || defaultMatch.teamBName || "";
       
       if (koRows[localId]) {
         var kr = koRows[localId];
-        if (koData[kr - 1][1] !== teamA_code || koData[kr - 1][2] !== teamB_code || 
-            koData[kr - 1][3] !== teamA_name || koData[kr - 1][4] !== teamB_name) {
-          koSheet.getRange(kr, 2, 1, 4).setValues([[teamA_code, teamB_code, teamA_name, teamB_name]]);
+        if (koData[kr - 1][1] !== finalTeamA || koData[kr - 1][2] !== finalTeamB || 
+            koData[kr - 1][3] !== finalTeamAName || koData[kr - 1][4] !== finalTeamBName) {
+          koSheet.getRange(kr, 2, 1, 4).setValues([[finalTeamA, finalTeamB, finalTeamAName, finalTeamBName]]);
           hasChanges = true;
         }
       } else {
-        koSheet.appendRow([localId, teamA_code, teamB_code, teamA_name, teamB_name]);
+        koSheet.appendRow([localId, finalTeamA, finalTeamB, finalTeamAName, finalTeamBName]);
         hasChanges = true;
       }
     }
