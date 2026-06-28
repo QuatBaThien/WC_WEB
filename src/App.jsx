@@ -77,6 +77,40 @@ const getValidKnockoutVal = (val, fallback) => {
   return str !== "" ? str : fallback;
 };
 
+// --- HELPER FUNCTION: CORRECT SWAPPED KNOCKOUT TEAMS IF DETECTED ---
+const correctKnockoutTeams = (koTeams) => {
+  if (!koTeams) return koTeams;
+  const corrected = { ...koTeams };
+  
+  const t2 = corrected['r32_2']; // Trận 74
+  const t5 = corrected['r32_5']; // Trận 77
+  
+  if (t2) {
+    // Nếu Đức gặp Thụy Điển -> Đổi thành Paraguay
+    const isT2Sweden = t2.teamB === 'SWE' || (t2.teamBName && t2.teamBName.toLowerCase().includes('thụy điển'));
+    if (isT2Sweden) {
+      corrected['r32_2'] = {
+        ...t2,
+        teamB: 'PAR',
+        teamBName: 'Paraguay'
+      };
+    }
+  }
+  
+  if (t5) {
+    // Nếu Pháp gặp Paraguay -> Đổi thành Thụy Điển
+    const isT5Paraguay = t5.teamB === 'PAR' || (t5.teamBName && t5.teamBName.toLowerCase().includes('paraguay'));
+    if (isT5Paraguay) {
+      corrected['r32_5'] = {
+        ...t5,
+        teamB: 'SWE',
+        teamBName: 'Thụy Điển'
+      };
+    }
+  }
+  return corrected;
+};
+
 export default function App() {
   // --- STATE ---
   const [matches, setMatches] = useState(() => {
@@ -93,7 +127,7 @@ export default function App() {
     }
 
     if (localKnockoutTeams) {
-      const koTeams = JSON.parse(localKnockoutTeams);
+      const koTeams = correctKnockoutTeams(JSON.parse(localKnockoutTeams));
       baseMatches = baseMatches.map(m => {
         if (m.stage !== 'group' && koTeams[m.id]) {
           return {
@@ -122,7 +156,7 @@ export default function App() {
     const results = localResults ? JSON.parse(localResults) : {};
     
     const localKnockoutTeams = localStorage.getItem('wc_knockout_teams');
-    const koTeams = localKnockoutTeams ? JSON.parse(localKnockoutTeams) : {};
+    const koTeams = localKnockoutTeams ? correctKnockoutTeams(JSON.parse(localKnockoutTeams)) : {};
 
     const baseMatches = INITIAL_MATCHES.map(m => {
       const u = {
@@ -352,9 +386,10 @@ export default function App() {
       }
 
       if (data.knockoutTeams) {
+        const koTeams = correctKnockoutTeams(data.knockoutTeams);
         resolvedMatches = resolvedMatches.map(m => {
-          if (m.stage !== 'group' && data.knockoutTeams[m.id]) {
-            const ko = data.knockoutTeams[m.id];
+          if (m.stage !== 'group' && koTeams[m.id]) {
+            const ko = koTeams[m.id];
             return {
               ...m,
               teamAName: getValidKnockoutVal(ko.teamAName, m.teamAName),

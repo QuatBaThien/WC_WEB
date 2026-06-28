@@ -777,6 +777,21 @@ function syncZafronixToSheets() {
     var matchNo = parseInt(match.id.split("-")[1], 10);
     var bMatch = bracketMatches[match.id]; // Tìm thông tin tương ứng bên bracket
     
+    // Sửa lỗi hoán đổi đối thủ vòng 32 của Đức và Pháp (Đức vs Paraguay, Pháp vs Thụy Điển) từ API
+    if (match.id === "2026-074") {
+      var awayVal = (match.awayTeam || (bMatch && bMatch.away) || "").toLowerCase().trim();
+      if (awayVal === "sweden" || awayVal === "thụy điển") {
+        match.awayTeam = "Paraguay";
+        if (bMatch) bMatch.away = "Paraguay";
+      }
+    } else if (match.id === "2026-077") {
+      var awayVal = (match.awayTeam || (bMatch && bMatch.away) || "").toLowerCase().trim();
+      if (awayVal === "paraguay") {
+        match.awayTeam = "Sweden";
+        if (bMatch) bMatch.away = "Sweden";
+      }
+    }
+    
     // Tìm mã code của hai đội
     var teamA_code, teamB_code;
     if (matchNo <= 72) {
