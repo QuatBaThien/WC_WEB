@@ -47,7 +47,6 @@ export default function MatchCard({
   const awayGoals = [];
   if (match.details && match.details.goals) {
     match.details.goals
-      .filter(g => !g.provisional)
       .forEach(g => {
         const gTeamLower = (g.team || "").toLowerCase().trim();
         const code = TEAM_NAME_TO_CODE[gTeamLower] || g.team;
@@ -76,6 +75,22 @@ export default function MatchCard({
   const flagB = getFlagUrl(teamBInfo);
 
   const actualResult = match.result; // 'A' | 'D' | 'B'
+
+  const getKnockoutResultText = () => {
+    if (actualResult === 'A') return `${teamAName} thắng`;
+    if (actualResult === 'B') return `${teamBName} thắng`;
+    if (actualResult === 'D') {
+      if (match.stage !== 'group') {
+        const winnerCode = match.details && match.details.winner;
+        const winnerName = winnerCode === match.teamA ? teamAName : (winnerCode === match.teamB ? teamBName : (winnerCode ? (TEAMS[winnerCode] ? TEAMS[winnerCode].name : winnerCode) : ''));
+        if (winnerName) {
+          return `Hòa trong 90p - ${winnerName} thắng`;
+        }
+      }
+      return 'Hòa';
+    }
+    return '';
+  };
 
   const penaltyVal = (penaltiesConfig && penaltiesConfig[match.stage] !== undefined)
     ? Number(penaltiesConfig[match.stage])
@@ -220,7 +235,48 @@ export default function MatchCard({
         <Col span={6}>
           <div className="flex flex-col items-center">
             {match.score ? (
-              <span style={{ fontSize: '16px', color: '#fff', fontWeight: 900, background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)' }}>{match.score}</span>
+              <>
+                <span style={{ fontSize: '16px', color: '#fff', fontWeight: 900, background: 'rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', display: 'inline-block' }}>
+                  {match.score.split('(')[0].trim()}
+                </span>
+                {/* Dòng dưới hiển thị kết quả hiệp phụ và pen */}
+                {(() => {
+                  let subText = "";
+                  
+                  if (match.score.includes('(')) {
+                    const infoPart = match.score.split('(')[1].replace(')', '').trim();
+                    if (infoPart.toLowerCase().includes('pen')) {
+                      // Định dạng lại từ "Pen 4 - 3" thành "(3-4 pen)" hoặc tương đương
+                      const matchPen = infoPart.match(/(?:Pen|pen)\s*(\d+)\s*-\s*(\d+)/);
+                      if (matchPen) {
+                        subText = `(${matchPen[1]}-${matchPen[2]} pen)`;
+                      } else {
+                        subText = `(${infoPart.replace(/pen/i, 'pen').trim()})`;
+                      }
+                    } else if (infoPart.toLowerCase().includes('hiệp phụ') || infoPart.toLowerCase().includes('aet')) {
+                      subText = "(Hiệp phụ)";
+                    }
+                  } else if (match.details) {
+                    const pen = match.details.penalties;
+                    const penHome = pen ? (pen.home !== undefined && pen.home !== null ? pen.home : pen.homeScore) : null;
+                    const penAway = pen ? (pen.away !== undefined && pen.away !== null ? pen.away : pen.awayScore) : null;
+                    if (penHome !== undefined && penHome !== null && penHome !== "") {
+                      subText = `(${penHome}-${penAway} pen)`;
+                    } else if (match.details.extraTime) {
+                      subText = "(Hiệp phụ)";
+                    }
+                  }
+                  
+                  if (subText) {
+                    return (
+                      <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 700, marginTop: 4, display: 'block', whiteSpace: 'nowrap' }}>
+                        {subText}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </>
             ) : (
               <span style={{ fontSize: '10px', color: '#64748b', letterSpacing: 2, fontWeight: 800 }}>VS</span>
             )}
@@ -339,7 +395,7 @@ export default function MatchCard({
           <div>
             <Text style={{ fontSize: '11px', color: '#64748b', marginRight: 6 }}>Kết quả:</Text>
             <Tag color="cyan" style={{ fontSize: '11px', fontWeight: 'bold' }}>
-              {actualResult === 'A' ? `${teamAName} thắng` : actualResult === 'D' ? 'Hòa' : `${teamBName} thắng`}
+              {getKnockoutResultText()}
             </Tag>
           </div>
           <div>
@@ -479,7 +535,6 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
   if (match.details) {
     if (match.details.goals) {
       match.details.goals
-        .filter(g => !g.provisional)
         .forEach(g => {
           const gTeamLower = (g.team || "").toLowerCase().trim();
           const code = TEAM_NAME_TO_CODE[gTeamLower] || g.team;
@@ -496,7 +551,6 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
     }
     if (match.details.cards) {
       match.details.cards
-        .filter(c => !c.provisional)
         .forEach(c => {
           const cTeamLower = (c.team || "").toLowerCase().trim();
           const code = TEAM_NAME_TO_CODE[cTeamLower] || c.team;
@@ -512,7 +566,6 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
     }
     if (match.details.substitutions) {
       match.details.substitutions
-        .filter(s => !s.provisional)
         .forEach(s => {
           const sTeamLower = (s.team || "").toLowerCase().trim();
           const code = TEAM_NAME_TO_CODE[sTeamLower] || s.team;

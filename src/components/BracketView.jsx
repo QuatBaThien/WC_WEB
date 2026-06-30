@@ -202,7 +202,8 @@ export default function BracketView({
     let isPredictionScore = false;
 
     if (match.score) {
-      const parts = match.score.split('-');
+      const mainScore = match.score.split('(')[0].trim();
+      const parts = mainScore.split('-');
       if (parts.length === 2) {
         scoreA = parts[0].trim();
         scoreB = parts[1].trim();

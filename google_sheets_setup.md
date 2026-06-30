@@ -827,8 +827,19 @@ function syncZafronixToSheets() {
       var scoreStr = homeScore + " - " + awayScore;
       
       var pen = match.penalties || match.penaltyShootout;
-      if (pen && pen.homeScore !== undefined && pen.homeScore !== null) {
-        scoreStr += " (Pen " + pen.homeScore + " - " + pen.awayScore + ")";
+      var penHome = pen ? (pen.home !== undefined && pen.home !== null ? pen.home : pen.homeScore) : null;
+      var penAway = pen ? (pen.away !== undefined && pen.away !== null ? pen.away : pen.awayScore) : null;
+      var hasPen = penHome !== undefined && penHome !== null && penHome !== "";
+      
+      // Hiển thị hiệp phụ nếu trận đấu kéo dài sang hiệp phụ và không đá luân lưu
+      if (match.extraTime) {
+        if (!hasPen) {
+          scoreStr += " (Hiệp phụ)";
+        }
+      }
+      
+      if (hasPen) {
+        scoreStr += " (Pen " + penHome + " - " + penAway + ")";
       }
       
       if (scoresObj[localId] !== scoreStr) {
@@ -837,24 +848,24 @@ function syncZafronixToSheets() {
       }
       
       var resultVal = null;
-      if (homeScore > awayScore) {
-        resultVal = "A";
-      } else if (homeScore < awayScore) {
-        resultVal = "B";
-      } else {
-        if (matchNo <= 72) {
-          resultVal = "D"; 
+      if (matchNo <= 72) {
+        if (homeScore > awayScore) {
+          resultVal = "A";
+        } else if (homeScore < awayScore) {
+          resultVal = "B";
         } else {
-          // Vòng loại trực tiếp: dùng trường winner từ Bracket API để phân định chính xác đội đi tiếp
-          if (bMatch && bMatch.winner) {
-            var winnerCode = TEAM_NAME_TO_CODE[(bMatch.winner || "").toLowerCase().trim()] || bMatch.winner || "";
-            resultVal = (winnerCode === teamA_code) ? "A" : "B";
+          resultVal = "D"; 
+        }
+      } else {
+        // Vòng loại trực tiếp: tính kết quả dự đoán trong 90 phút chính thức
+        var endedInDraw90 = match.extraTime || hasPen || (homeScore === awayScore);
+        if (endedInDraw90) {
+          resultVal = "D"; // Kết quả trong 90 phút là Hòa
+        } else {
+          if (homeScore > awayScore) {
+            resultVal = "A";
           } else {
-            if (pen && pen.homeScore !== undefined) {
-              resultVal = (pen.homeScore > pen.awayScore) ? "A" : "B";
-            } else {
-              resultVal = "D";
-            }
+            resultVal = "B";
           }
         }
       }
@@ -907,9 +918,6 @@ function syncZafronixToSheets() {
 
     // C. XỬ LÝ CHI TIẾT TRẬN ĐẤU (THỜI TIẾT, TRỌNG TÀI, BÀN THẮNG, THẺ PHẠT...)
     var cleanGoals = (match.goals || [])
-      .filter(function(g) {
-        return !g.provisional;
-      })
       .map(function(g) {
         var team = g.team;
         if (team === 'home') team = teamA_code;
@@ -928,9 +936,6 @@ function syncZafronixToSheets() {
       });
 
     var cleanCards = (match.cards || [])
-      .filter(function(c) {
-        return !c.provisional;
-      })
       .map(function(c) {
         var team = c.team;
         if (team === 'home') team = teamA_code;
@@ -948,9 +953,6 @@ function syncZafronixToSheets() {
       });
 
     var cleanSubs = (match.substitutions || [])
-      .filter(function(s) {
-        return !s.provisional;
-      })
       .map(function(s) {
         var team = s.team;
         if (team === 'home') team = teamA_code;
@@ -967,6 +969,22 @@ function syncZafronixToSheets() {
         };
       });
 
+    var winnerCode = null;
+    if (matchNo > 72) {
+      if (bMatch && bMatch.winner) {
+        winnerCode = TEAM_NAME_TO_CODE[(bMatch.winner || "").toLowerCase().trim()] || bMatch.winner || null;
+      } else {
+        var pen = match.penalties || match.penaltyShootout;
+        if (pen && pen.homeScore !== undefined && pen.homeScore !== null) {
+          winnerCode = (parseInt(pen.homeScore) > parseInt(pen.awayScore)) ? teamA_code : teamB_code;
+        } else if (match.homeScore !== null && match.awayScore !== null) {
+          var hScore = parseInt(match.homeScore);
+          var aScore = parseInt(match.awayScore);
+          winnerCode = (hScore > aScore) ? teamA_code : (hScore < aScore ? teamB_code : null);
+        }
+      }
+    }
+
     var detailsObj = {
       goals: cleanGoals,
       cards: cleanCards,
@@ -974,7 +992,9 @@ function syncZafronixToSheets() {
       referee: match.referee || null,
       weather: match.weather || null,
       captains: match.captains || null,
-      penalties: match.penalties || match.penaltyShootout || null
+      penalties: match.penalties || match.penaltyShootout || null,
+      extraTime: match.extraTime || false,
+      winner: winnerCode
     };
     var detailsJsonStr = JSON.stringify(detailsObj);
     
