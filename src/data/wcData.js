@@ -1120,7 +1120,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Á quân Bảng A",
     "teamBName": "Á quân Bảng B",
     "date": "2026-06-29T02:00:00",
-    "venue": "Lincoln Financial Field, Philadelphia",
+    "venue": "SoFi Stadium, Los Angeles",
     "result": null
   },
   {
@@ -1132,7 +1132,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng C",
     "teamBName": "Á quân Bảng F",
     "date": "2026-06-30T00:00:00",
-    "venue": "Levi's Stadium, San Francisco",
+    "venue": "NRG Stadium, Houston",
     "result": null
   },
   {
@@ -1144,7 +1144,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng E",
     "teamBName": "Hạng 3 A/B/C/D/F",
     "date": "2026-06-30T03:30:00",
-    "venue": "Lumen Field, Seattle",
+    "venue": "Gillette Stadium, Boston",
     "result": null
   },
   {
@@ -1156,7 +1156,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng F",
     "teamBName": "Á quân Bảng C",
     "date": "2026-06-30T08:00:00",
-    "venue": "BMO Field, Toronto",
+    "venue": "Estadio BBVA, Monterrey",
     "result": null
   },
   {
@@ -1168,7 +1168,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Á quân Bảng E",
     "teamBName": "Á quân Bảng I",
     "date": "2026-07-01T00:00:00",
-    "venue": "BC Place, Vancouver",
+    "venue": "AT&T Stadium, Dallas",
     "result": null
   },
   {
@@ -1180,7 +1180,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng I",
     "teamBName": "Hạng 3 C/D/F/G/H",
     "date": "2026-07-01T04:00:00",
-    "venue": "Estadio Azteca, Mexico City",
+    "venue": "MetLife Stadium, New York/New Jersey",
     "result": null
   },
   {
@@ -1192,7 +1192,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng A",
     "teamBName": "Hạng 3 C/E/F/H/I",
     "date": "2026-07-01T08:00:00",
-    "venue": "Estadio BBVA, Monterrey",
+    "venue": "Estadio Azteca, Mexico City",
     "result": null
   },
   {
@@ -1204,7 +1204,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng L",
     "teamBName": "Hạng 3 E/H/I/J/K",
     "date": "2026-07-01T23:00:00",
-    "venue": "Estadio Akron, Guadalajara",
+    "venue": "Mercedes-Benz Stadium, Atlanta",
     "result": null
   },
   {
@@ -1215,8 +1215,8 @@ export const INITIAL_MATCHES = [
     "teamB": "2_11",
     "teamAName": "Nhất Bảng G",
     "teamBName": "Hạng 3 A/E/H/I/J",
-    "date": "2026-07-02T03:00:00",
-    "venue": "MetLife Stadium, New York/New Jersey",
+    "date": "2026-07-03T06:00:00",
+    "venue": "BMO Field, Toronto",
     "result": null
   },
   {
@@ -1227,8 +1227,8 @@ export const INITIAL_MATCHES = [
     "teamB": "2_10",
     "teamAName": "Nhất Bảng D",
     "teamBName": "Hạng 3 B/E/F/I/J",
-    "date": "2026-07-02T07:00:00",
-    "venue": "SoFi Stadium, Los Angeles",
+    "date": "2026-07-02T03:00:00",
+    "venue": "Lumen Field, Seattle",
     "result": null
   },
   {
@@ -1240,7 +1240,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng H",
     "teamBName": "Á quân Bảng J",
     "date": "2026-07-03T02:00:00",
-    "venue": "Mercedes-Benz Stadium, Atlanta",
+    "venue": "SoFi Stadium, Los Angeles",
     "result": null
   },
   {
@@ -1251,8 +1251,8 @@ export const INITIAL_MATCHES = [
     "teamB": "2_9",
     "teamAName": "Á quân Bảng K",
     "teamBName": "Á quân Bảng L",
-    "date": "2026-07-03T06:00:00",
-    "venue": "Hard Rock Stadium, Miami",
+    "date": "2026-07-02T07:00:00",
+    "venue": "Levi's Stadium, San Francisco",
     "result": null
   },
   {
@@ -1264,7 +1264,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng B",
     "teamBName": "Hạng 3 E/F/G/I/J",
     "date": "2026-07-03T10:00:00",
-    "venue": "Gillette Stadium, Boston",
+    "venue": "BC Place, Vancouver",
     "result": null
   },
   {
@@ -1288,7 +1288,7 @@ export const INITIAL_MATCHES = [
     "teamAName": "Nhất Bảng J",
     "teamBName": "Á quân Bảng H",
     "date": "2026-07-04T05:00:00",
-    "venue": "NRG Stadium, Houston",
+    "venue": "Hard Rock Stadium, Miami",
     "result": null
   },
   {
