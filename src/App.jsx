@@ -1034,7 +1034,8 @@ export default function App() {
       filtered = filtered.filter(m => m.stage === 'final' || m.stage === 'third_place');
     }
 
-    return filtered;
+    // Sắp xếp các trận đấu theo thứ tự thời gian tăng dần
+    return [...filtered].sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
   const filteredMatches = getFilteredMatches();
