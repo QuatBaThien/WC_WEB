@@ -224,6 +224,17 @@ function doGet(e) {
     return handleVerifyAccount(params);
   }
 
+  // --- CACHE HOÀN TOÀN CHO ĐỌC DỮ LIỆU ---
+  var isCacheable = !params.action && params.syncApi !== "true";
+  if (isCacheable) {
+    var cache = CacheService.getScriptCache();
+    var cachedData = cache.get("wc_game_data");
+    if (cachedData) {
+      return ContentService.createTextOutput(cachedData)
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ── Nhánh mặc định: Trả toàn bộ dữ liệu game ──
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -233,18 +244,17 @@ function doGet(e) {
   if (predSheet) {
     var data = predSheet.getDataRange().getValues();
     var latestUserPredictions = {};
+    var seenUsers = {};
 
-    for (var i = 1; i < data.length; i++) {
-      var timestamp = data[i][0];
-      var maUser    = data[i][1];
-      var ip        = data[i][2];
-      var predJson  = data[i][3];
-
-      if (maUser && predJson) {
-        if (
-          !latestUserPredictions[maUser] ||
-          new Date(timestamp) > new Date(latestUserPredictions[maUser].lastUpdated)
-        ) {
+    // Duyệt ngược từ dòng cuối lên đầu để lấy bản ghi mới nhất lập tức, bỏ qua các bản ghi cũ của người chơi đó
+    for (var i = data.length - 1; i >= 1; i--) {
+      var maUser = (data[i][1] || "").toString().trim().toUpperCase();
+      if (maUser && !seenUsers[maUser]) {
+        seenUsers[maUser] = true;
+        var timestamp = data[i][0];
+        var ip        = data[i][2];
+        var predJson  = data[i][3];
+        if (predJson) {
           try {
             latestUserPredictions[maUser] = {
               id: maUser,
@@ -332,8 +342,16 @@ function doGet(e) {
     matchesDetails: matchesDetails
   };
 
+  var outputStr = JSON.stringify(output);
+  if (isCacheable) {
+    var cache = CacheService.getScriptCache();
+    try {
+      cache.put("wc_game_data", outputStr, 600); // Lưu cache trong 10 phút
+    } catch(err) {}
+  }
+
   return ContentService
-    .createTextOutput(JSON.stringify(output))
+    .createTextOutput(outputStr)
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -432,6 +450,10 @@ function doPost(e) {
         lockSheet.appendRow([key, payload.lockedMatches[key]]);
       });
     }
+  }
+
+  if (action === "submitPrediction" || action === "updateResults" || action === "updateLocks") {
+    clearGameDataCache();
   }
 
   return jsonResponse({ status: "success" });
@@ -775,6 +797,12 @@ function syncZafronixToSheets() {
     if (!localId) return;
     
     var matchNo = parseInt(match.id.split("-")[1], 10);
+    // Tối ưu hóa: Bỏ qua các trận vòng bảng (g1 -> g72) đã có tỉ số trong sheet.
+    // Vì vòng bảng đã kết thúc, các tỉ số này là cố định và không thay đổi.
+    if (matchNo <= 72 && scoresObj[localId]) {
+      return;
+    }
+    
     var bMatch = bracketMatches[match.id]; // Tìm thông tin tương ứng bên bracket
     
     // Sửa lỗi hoán đổi đối thủ vòng 32 của Đức và Pháp (Đức vs Paraguay, Pháp vs Thụy Điển) từ API
@@ -1029,6 +1057,14 @@ function syncZafronixToSheets() {
   } else {
     Logger.log("Dữ liệu không có thay đổi gì mới.");
   }
+}
+
+// Xóa cache dữ liệu game
+function clearGameDataCache() {
+  var cache = CacheService.getScriptCache();
+  try {
+    cache.remove("wc_game_data");
+  } catch(e) {}
 }
 ```
 
