@@ -222,7 +222,7 @@ export const TEAMS = {
   "ENG": {
     "name": "Anh",
     "flag": "",
-    "iso": "gb"
+    "iso": "gb-eng"
   },
   "CRO": {
     "name": "Croatia",

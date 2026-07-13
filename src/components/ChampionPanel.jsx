@@ -100,7 +100,7 @@ export default function ChampionPanel({
                 {/* Flag & Team Info */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <img
-                    src={`https://flagcdn.com/w80/${opt.code === 'ENG' ? 'gb' : opt.code === 'FRA' ? 'fr' : opt.code === 'ESP' ? 'es' : opt.code === 'ARG' ? 'ar' : opt.code === 'BRA' ? 'br' : opt.code === 'POR' ? 'pt' : opt.code === 'GER' ? 'de' : 'nl'}.png`}
+                    src={`https://flagcdn.com/w80/${opt.code === 'ENG' ? 'gb-eng' : opt.code === 'FRA' ? 'fr' : opt.code === 'ESP' ? 'es' : opt.code === 'ARG' ? 'ar' : opt.code === 'BRA' ? 'br' : opt.code === 'POR' ? 'pt' : opt.code === 'GER' ? 'de' : 'nl'}.png`}
                     alt={opt.name}
                     style={{ width: 44, height: 30, objectFit: 'cover', borderRadius: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}
                   />
