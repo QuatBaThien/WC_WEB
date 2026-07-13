@@ -1531,3 +1531,26 @@ export const isScorePredictionCorrect = (predScore, actualScore) => {
     return predScore === "Khác";
   }
 };
+
+export const getScorePredictionReward = (scoreVal, stage, stagePenalty) => {
+  if (!scoreVal) return 0;
+  
+  if (stage === 'sf') {
+    const s = scoreVal.trim();
+    if (['1-1', '1-0', '0-1', '2-1', '1-2', '0-0'].includes(s)) {
+      return 60;
+    }
+    if (['2-0', '0-2', '2-2', '3-1', '1-3'].includes(s)) {
+      return 80;
+    }
+    if (['3-0', '0-3', '3-3', '3-2', '2-3'].includes(s)) {
+      return 100;
+    }
+    if (s === 'Khác') {
+      return 120;
+    }
+    return 60;
+  }
+  
+  return stagePenalty;
+};

@@ -5,7 +5,7 @@ import {
   CheckCircleOutlined, CloseCircleOutlined,
   CopyOutlined, CheckOutlined, CrownOutlined
 } from '@ant-design/icons';
-import { TEAMS, CHAMPION_OPTIONS, getActualScore, isScorePredictionCorrect } from '../data/wcData';
+import { TEAMS, CHAMPION_OPTIONS, getActualScore, isScorePredictionCorrect, getScorePredictionReward } from '../data/wcData';
 
 const { Text, Title } = Typography;
 
@@ -174,7 +174,8 @@ export default function Leaderboard({
           if (actualScore) {
             const isScoreCorrect = isScorePredictionCorrect(predScore, actualScore);
             if (isScoreCorrect) {
-              penaltyPoints -= stagePenalty;
+              const scoreReward = getScorePredictionReward(predScore, match.stage, stagePenalty);
+              penaltyPoints -= scoreReward;
             }
           }
         }
@@ -634,9 +635,10 @@ export default function Leaderboard({
                               const stagePenalty = (penaltiesConfig && penaltiesConfig[match.stage] !== undefined)
                                 ? Number(penaltiesConfig[match.stage])
                                 : 10;
+                              const scoreReward = getScorePredictionReward(pScore, match.stage, stagePenalty);
                               return (
                                 <Text style={{ fontSize: 9, color: isScoreCorrect ? '#00f5a0' : '#858d99', fontWeight: isScoreCorrect ? 'bold' : 'normal' }}>
-                                  {isScoreCorrect ? `Trúng tỉ số (-${stagePenalty}đ)` : 'Sai tỉ số (+0đ)'}
+                                  {isScoreCorrect ? `Trúng tỉ số (-${scoreReward}đ)` : 'Sai tỉ số (+0đ)'}
                                 </Text>
                               );
                             }

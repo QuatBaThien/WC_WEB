@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Tag, Space, Typography, Row, Col, Input, Badge, Modal, Tooltip, Avatar, Tabs } from 'antd';
-import { TEAMS, getActualScore, isScorePredictionCorrect } from '../data/wcData';
+import { TEAMS, getActualScore, isScorePredictionCorrect, getScorePredictionReward } from '../data/wcData';
 import { LockOutlined, UnlockOutlined, CheckCircleFilled, CloseCircleFilled, EnvironmentOutlined, CalendarOutlined, EditOutlined, RetweetOutlined, EyeOutlined, UserOutlined } from '@ant-design/icons';
 
 const { Text, Title } = Typography;
@@ -586,12 +586,21 @@ export default function MatchCard({
                               {scoreVal}
                             </span>
                             <span style={{ 
+                              fontSize: '9px', 
+                              color: group.color, 
+                              fontWeight: 950,
+                              marginTop: 1,
+                              marginBottom: 2,
+                              textShadow: `0 0 4px ${group.color}30`
+                            }}>
+                              +{getScorePredictionReward(scoreVal, match.stage, penaltyVal)}đ
+                            </span>
+                            <span style={{ 
                               fontSize: '8px', 
                               color: isSelected ? '#0f172a' : '#64748b', 
                               background: isSelected ? group.color : 'rgba(255,255,255,0.03)',
                               padding: '1px 5px',
                               borderRadius: 4,
-                              marginTop: 3, 
                               fontWeight: 800,
                               border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.05)'
                             }}>
@@ -647,17 +656,18 @@ export default function MatchCard({
                   </Tag>
                 )}
 
-                {predictionScore && actualScore && (
-                  isScoreCorrect ? (
+                {predictionScore && actualScore && (() => {
+                  const scoreReward = getScorePredictionReward(predictionScore, match.stage, penaltyVal);
+                  return isScoreCorrect ? (
                     <Tag color="success" icon={<CheckCircleFilled />} style={{ fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(0, 255, 157, 0.15)', color: '#00ff9d', boxShadow: '0 0 10px rgba(0, 255, 157, 0.3)' }}>
-                      Trúng tỉ số! Thưởng trừ -{penaltyVal}đ Phạt
+                      Trúng tỉ số! Thưởng trừ -{scoreReward}đ Phạt
                     </Tag>
                   ) : (
                     <Tag color="default" style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(255,255,255,0.04)' }}>
                       Đoán tỉ số {predictionScore} (Thực tế: {actualScore}) (+0đ Phạt)
                     </Tag>
-                  )
-                )}
+                  );
+                })()}
               </div>
             </div>
           );
