@@ -1507,3 +1507,27 @@ export const CHAMPION_OPTIONS = [
   { code: 'GER', name: 'Đức', odds: 17.0 },
   { code: 'NED', name: 'Hà Lan', odds: 17.0 }
 ];
+
+export const getActualScore = (scoreStr) => {
+  if (!scoreStr) return null;
+  const mainPart = scoreStr.split('(')[0].trim();
+  const normalized = mainPart.replace(/\s+/g, '').replace(/–/g, '-');
+  return normalized;
+};
+
+export const isScorePredictionCorrect = (predScore, actualScore) => {
+  if (!predScore || !actualScore) return false;
+  
+  const standardScores = [
+    "0-0", "0-1", "0-2", "0-3",
+    "1-0", "1-1", "1-2", "1-3",
+    "2-0", "2-1", "2-2", "2-3",
+    "3-0", "3-1", "3-2", "3-3"
+  ];
+  
+  if (standardScores.includes(actualScore)) {
+    return predScore === actualScore;
+  } else {
+    return predScore === "Khác";
+  }
+};

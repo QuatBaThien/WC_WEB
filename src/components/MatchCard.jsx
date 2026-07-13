@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Tag, Space, Typography, Row, Col, Input, Badge, Modal, Tooltip, Avatar, Tabs } from 'antd';
-import { TEAMS } from '../data/wcData';
+import { TEAMS, getActualScore, isScorePredictionCorrect } from '../data/wcData';
 import { LockOutlined, UnlockOutlined, CheckCircleFilled, CloseCircleFilled, EnvironmentOutlined, CalendarOutlined, EditOutlined, RetweetOutlined, EyeOutlined, UserOutlined } from '@ant-design/icons';
 
 const { Text, Title } = Typography;
@@ -29,6 +29,7 @@ const cleanScorerName = (name) => {
 export default function MatchCard({
   match,
   prediction,
+  predictionScore,
   onPredict,
   isAdmin,
   onSetResult,
@@ -123,6 +124,21 @@ export default function MatchCard({
     onPredict(match.id, choice);
   };
 
+  const handleScoreClick = (scoreVal) => {
+    if (isLocked && !isAdmin) return;
+    const nextVal = predictionScore === scoreVal ? null : scoreVal;
+    onPredict(match.id + '_score', nextVal);
+  };
+
+  const getScoreStats = (scoreVal) => {
+    if (!players || players.length === 0) return { count: 0, percent: 0 };
+    const votingPlayers = players.filter(p => p.id !== 'ADMIN_WC' && p.predictions);
+    const totalWithScore = votingPlayers.filter(p => p.predictions[match.id + '_score']).length;
+    const count = votingPlayers.filter(p => p.predictions[match.id + '_score'] === scoreVal).length;
+    const percent = totalWithScore > 0 ? Math.round((count / totalWithScore) * 100) : 0;
+    return { count, percent };
+  };
+
   const getCardBorderColor = () => {
     if (actualResult) {
       return prediction ? (isCorrect ? '2px solid #52c41a' : '2px solid #ff4d4f') : '1px solid rgba(255,255,255,0.08)';
@@ -130,6 +146,563 @@ export default function MatchCard({
     return prediction ? '1px solid #d4b106' : '1px solid rgba(255,255,255,0.08)';
   };
 
+  const isHeroLayout = match.stage === 'sf' || match.stage === 'final' || match.stage === 'third_place';
+
+  const scoreGroups = [
+    { label: 'Hòa', type: 'D', color: '#ffdd00', bg: 'rgba(255, 221, 0, 0.03)', options: ['0-0', '1-1', '2-2', '3-3'] },
+    { label: `Thắng (${teamAName})`, type: 'A', color: '#00ff9d', bg: 'rgba(0, 255, 157, 0.02)', options: ['1-0', '2-0', '2-1', '3-0', '3-1', '3-2'] },
+    { label: `Thắng (${teamBName})`, type: 'B', color: '#00f0ff', bg: 'rgba(0, 240, 255, 0.02)', options: ['0-1', '0-2', '1-2', '0-3', '1-3', '2-3'] },
+    { label: 'Khác', type: 'other', color: '#a0aec0', bg: 'rgba(255, 255, 255, 0.01)', options: ['Khác'] }
+  ];
+
+  if (isHeroLayout) {
+    return (
+      <Card
+        id={`match-card-${match.id}`}
+        className={`glass-card hero-match-card ${!isLocked ? 'predictable-match' : ''}`}
+        style={{
+          border: getCardBorderColor(),
+          background: 'linear-gradient(145deg, rgba(12, 18, 38, 0.9) 0%, rgba(5, 7, 18, 0.98) 100%)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: 24,
+          overflow: 'hidden',
+          boxShadow: prediction 
+            ? (isCorrect ? '0 15px 40px rgba(0, 255, 157, 0.15)' : '0 15px 40px rgba(255, 77, 79, 0.15)') 
+            : '0 15px 40px rgba(0,0,0,0.7)',
+          borderTop: '1px solid rgba(255,255,255,0.12)',
+          marginBottom: 20
+        }}
+        styles={{ body: { padding: '24px 20px' } }}
+      >
+        {/* Header Giai Đoạn */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ 
+              background: match.stage === 'sf' ? 'linear-gradient(90deg, #ffdd00, #ff8c00)' : (match.stage === 'final' ? 'linear-gradient(90deg, #00f0ff, #ffd700)' : '#cbd5e1'),
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: '12px', 
+              fontWeight: 950, 
+              letterSpacing: 1.5,
+              textTransform: 'uppercase'
+            }}>
+              {match.stage === 'sf' ? '⚡ BÁN KẾT' : match.stage === 'third_place' ? '🥉 TRANH HẠNG 3' : '👑 CHUNG KẾT'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {isLocked ? (
+              <Tag color="red" bordered={false} icon={<LockOutlined />} style={{ fontSize: '10px', margin: 0, padding: '2px 8px', borderRadius: 4, fontWeight: 'bold' }}>
+                Đã khóa
+              </Tag>
+            ) : (
+              <Tag color="green" bordered={false} icon={<UnlockOutlined />} style={{ fontSize: '10px', margin: 0, padding: '2px 8px', borderRadius: 4, fontWeight: 'bold' }}>
+                Có thể dự đoán
+              </Tag>
+            )}
+
+            <button
+              onClick={() => setShowAnalysis(true)}
+              style={{
+                background: 'rgba(56, 189, 248, 0.12)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: 6,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                color: '#38bdf8',
+                fontSize: 11,
+                fontWeight: 800,
+                transition: 'all 0.2s',
+                textShadow: '0 0 5px rgba(56, 189, 248, 0.5)'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
+                e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.6)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
+                e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+              }}
+            >
+              Phân tích <EyeOutlined style={{ fontSize: 12 }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Stadium Scoreboard Matchup */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 0', position: 'relative' }}>
+          {/* Team A Neon Panel */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flex: 1, textAlign: 'center', maxWidth: '42%' }}>
+            <div style={{
+              width: 74,
+              height: 74,
+              borderRadius: '50%',
+              padding: 4,
+              background: 'rgba(15, 23, 42, 0.6)',
+              border: '3px solid #00ff9d',
+              boxShadow: '0 0 15px rgba(0, 255, 157, 0.4), inset 0 0 10px rgba(0, 255, 157, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              transition: 'transform 0.3s'
+            }}
+            className="neon-flag-container"
+            >
+              {flagA ? (
+                <img 
+                  src={flagA} 
+                  alt={teamAName} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                />
+              ) : (
+                <span style={{ fontSize: 24 }}>🏳️</span>
+              )}
+            </div>
+            <Text strong style={{ color: '#fff', fontSize: '15px', fontWeight: 900, display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+              {teamAName}
+            </Text>
+          </div>
+
+          {/* LED Tỉ số / VS */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, padding: '0 8px', zIndex: 2 }}>
+            {match.score ? (
+              <>
+                <span style={{ 
+                  fontSize: '24px', 
+                  color: '#fff', 
+                  fontWeight: 950, 
+                  fontFamily: 'monospace',
+                  background: 'rgba(5, 7, 18, 0.9)', 
+                  padding: '8px 20px', 
+                  borderRadius: 12, 
+                  border: '2px solid rgba(255, 255, 255, 0.15)', 
+                  display: 'inline-block', 
+                  letterSpacing: 2, 
+                  boxShadow: '0 0 20px rgba(0,0,0,0.8), inset 0 0 10px rgba(255,255,255,0.05)',
+                  textShadow: '0 0 8px rgba(255,255,255,0.6)'
+                }}>
+                  {match.score.split('(')[0].trim()}
+                </span>
+                {(() => {
+                  let subText = "";
+                  if (match.score.includes('(')) {
+                    const infoPart = match.score.split('(')[1].replace(')', '').trim();
+                    if (infoPart.toLowerCase().includes('pen')) {
+                      const matchPen = infoPart.match(/(?:Pen|pen)\s*(\d+)\s*-\s*(\d+)/);
+                      subText = matchPen ? `(${matchPen[1]}-${matchPen[2]} pen)` : `(${infoPart})`;
+                    } else if (infoPart.toLowerCase().includes('hiệp phụ') || infoPart.toLowerCase().includes('aet')) {
+                      subText = "(Hiệp phụ)";
+                    }
+                  } else if (match.details) {
+                    const pen = match.details.penalties;
+                    const penHome = pen ? (pen.home !== undefined ? pen.home : pen.homeScore) : null;
+                    const penAway = pen ? (pen.away !== undefined ? pen.away : pen.awayScore) : null;
+                    if (penHome !== null && penHome !== undefined && penHome !== "") {
+                      subText = `(${penHome}-${penAway} pen)`;
+                    } else if (match.details.extraTime) {
+                      subText = "(Hiệp phụ)";
+                    }
+                  }
+                  if (subText) {
+                    return (
+                      <span style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 900, marginTop: 8, display: 'block', whiteSpace: 'nowrap', textShadow: '0 0 8px rgba(251, 191, 36, 0.5)' }}>
+                        {subText}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </>
+            ) : (
+              <span style={{ 
+                fontSize: '12px', 
+                color: '#64748b', 
+                letterSpacing: 3, 
+                fontWeight: 900, 
+                background: 'rgba(5, 7, 18, 0.6)', 
+                padding: '6px 14px', 
+                borderRadius: 20, 
+                border: '1px solid rgba(255,255,255,0.06)',
+                textShadow: '0 0 5px rgba(255,255,255,0.1)'
+              }}>VS</span>
+            )}
+          </div>
+
+          {/* Team B Neon Panel */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flex: 1, textAlign: 'center', maxWidth: '42%' }}>
+            <div style={{
+              width: 74,
+              height: 74,
+              borderRadius: '50%',
+              padding: 4,
+              background: 'rgba(15, 23, 42, 0.6)',
+              border: '3px solid #00f0ff',
+              boxShadow: '0 0 15px rgba(0, 240, 255, 0.4), inset 0 0 10px rgba(0, 240, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              transition: 'transform 0.3s'
+            }}
+            className="neon-flag-container"
+            >
+              {flagB ? (
+                <img 
+                  src={flagB} 
+                  alt={teamBName} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                />
+              ) : (
+                <span style={{ fontSize: 24 }}>🏳️</span>
+              )}
+            </div>
+            <Text strong style={{ color: '#fff', fontSize: '15px', fontWeight: 900, display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+              {teamBName}
+            </Text>
+          </div>
+        </div>
+
+        {/* Danh sách ghi bàn */}
+        {match.details && match.details.goals && match.details.goals.length > 0 && (
+          <Row style={{ marginBottom: 20, marginTop: -8, fontSize: '11px', color: '#94a3b8', lineHeight: '1.5' }}>
+            <Col span={11} style={{ textAlign: 'right', paddingRight: 14, borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+              {homeGoals.map((g, idx) => (
+                <div key={idx} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {g.scorer} {g.minute}' {g.type === 'penalty' ? '(Pen)' : g.type === 'own_goal' ? '(OG)' : ''}
+                </div>
+              ))}
+            </Col>
+            <Col span={2} style={{ textAlign: 'center', opacity: 0.5, fontSize: 13 }}>⚽</Col>
+            <Col span={11} style={{ textAlign: 'left', paddingLeft: 14 }}>
+              {awayGoals.map((g, idx) => (
+                <div key={idx} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {g.scorer} {g.minute}' {g.type === 'penalty' ? '(Pen)' : g.type === 'own_goal' ? '(OG)' : ''}
+                </div>
+              ))}
+            </Col>
+          </Row>
+        )}
+
+        {/* Địa điểm & Thời gian */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', justifyContent: 'center', padding: '12px 0', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 20 }}>
+          <Text style={{ fontSize: '11px', color: '#94a3b8' }}>
+            <EnvironmentOutlined style={{ marginRight: 6, color: '#38bdf8' }} /> {match.venue}
+          </Text>
+          <Text style={{ fontSize: '11px', color: '#94a3b8' }}>
+            <CalendarOutlined style={{ marginRight: 6, color: '#fbbf24' }} /> {formatKickoffTime(match.date)}
+          </Text>
+        </div>
+
+        {/* Khu Vực Dự Đoán */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          
+          {/* 1. DỰ ĐOÁN KẾT QUẢ TRẬN ĐẤU */}
+          <div>
+            <Text strong style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: 10, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+              1. Dự đoán kết quả trận đấu (90 phút):
+            </Text>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Button
+                type={prediction === 'A' ? 'primary' : 'default'}
+                danger={prediction === 'A'}
+                onClick={() => handlePredictClick('A')}
+                disabled={isLocked && !isAdmin}
+                style={{
+                  flex: 1,
+                  fontSize: '12px',
+                  fontWeight: 900,
+                  height: 42,
+                  borderRadius: 12,
+                  textTransform: 'uppercase',
+                  background: prediction === 'A' ? '#00ff9d' : 'rgba(255,255,255,0.02)',
+                  borderColor: prediction === 'A' ? '#00ff9d' : 'rgba(255,255,255,0.08)',
+                  color: prediction === 'A' ? '#0f172a' : '#94a3b8',
+                  boxShadow: prediction === 'A' ? '0 0 15px rgba(0, 255, 157, 0.4)' : 'none',
+                  transition: 'all 0.25s'
+                }}
+              >
+                {teamAName}
+              </Button>
+
+              <Button
+                type={prediction === 'D' ? 'primary' : 'default'}
+                onClick={() => handlePredictClick('D')}
+                disabled={isLocked && !isAdmin}
+                style={{
+                  flex: 1,
+                  fontSize: '12px',
+                  fontWeight: 900,
+                  height: 42,
+                  borderRadius: 12,
+                  textTransform: 'uppercase',
+                  background: prediction === 'D' ? '#ffdd00' : 'rgba(255,255,255,0.02)',
+                  borderColor: prediction === 'D' ? '#ffdd00' : 'rgba(255,255,255,0.08)',
+                  color: prediction === 'D' ? '#0f172a' : '#94a3b8',
+                  boxShadow: prediction === 'D' ? '0 0 15px rgba(255, 221, 0, 0.4)' : 'none',
+                  transition: 'all 0.25s'
+                }}
+              >
+                Hòa
+              </Button>
+
+              <Button
+                type={prediction === 'B' ? 'primary' : 'default'}
+                onClick={() => handlePredictClick('B')}
+                disabled={isLocked && !isAdmin}
+                style={{
+                  flex: 1,
+                  fontSize: '12px',
+                  fontWeight: 900,
+                  height: 42,
+                  borderRadius: 12,
+                  textTransform: 'uppercase',
+                  background: prediction === 'B' ? '#00f0ff' : 'rgba(255,255,255,0.02)',
+                  borderColor: prediction === 'B' ? '#00f0ff' : 'rgba(255,255,255,0.08)',
+                  color: prediction === 'B' ? '#0f172a' : '#94a3b8',
+                  boxShadow: prediction === 'B' ? '0 0 15px rgba(0, 240, 255, 0.4)' : 'none',
+                  transition: 'all 0.25s'
+                }}
+              >
+                {teamBName}
+              </Button>
+            </div>
+          </div>
+
+          {/* 2. DỰ ĐOÁN TỈ SỐ (Pills Layout) */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text strong style={{ fontSize: '11px', color: '#64748b', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                2. Dự đoán tỉ số (Đoán đúng thưởng điểm, sai không phạt):
+              </Text>
+              {predictionScore && !isLocked && (
+                <button
+                  onClick={() => handleScoreClick(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ff4d4f',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  Xóa tỉ số
+                </button>
+              )}
+            </div>
+
+            <div style={{ 
+              background: 'rgba(5, 7, 18, 0.4)', 
+              border: '1px solid rgba(255, 255, 255, 0.06)', 
+              borderRadius: 20, 
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}>
+              {scoreGroups.map((group, gIdx) => {
+                return (
+                  <div 
+                    key={group.label} 
+                    style={{ 
+                      borderBottom: gIdx < scoreGroups.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      paddingBottom: gIdx < scoreGroups.length - 1 ? 16 : 0
+                    }}
+                  >
+                    <div style={{ 
+                      fontSize: '11px', 
+                      fontWeight: 900, 
+                      color: group.color, 
+                      textTransform: 'uppercase', 
+                      marginBottom: 8, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 6,
+                      textShadow: `0 0 4px ${group.color}40`
+                    }}>
+                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: group.color, boxShadow: `0 0 6px ${group.color}` }} />
+                      {group.label}
+                    </div>
+                    
+                    {/* Grid of Bullets */}
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', 
+                      gap: 8 
+                    }}>
+                      {group.options.map((scoreVal) => {
+                        const isSelected = predictionScore === scoreVal;
+                        const { count, percent } = getScoreStats(scoreVal);
+                        
+                        return (
+                          <div
+                            key={scoreVal}
+                            onClick={() => handleScoreClick(scoreVal)}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '8px 6px',
+                              borderRadius: 10,
+                              cursor: isLocked && !isAdmin ? 'not-allowed' : 'pointer',
+                              border: isSelected 
+                                ? `2px solid ${group.color}` 
+                                : '1px solid rgba(255,255,255,0.06)',
+                              background: isSelected 
+                                ? `${group.color}20` 
+                                : 'rgba(5, 7, 18, 0.4)',
+                              boxShadow: isSelected ? `0 0 12px ${group.color}35` : 'none',
+                              transition: 'all 0.2s',
+                              minHeight: 46
+                            }}
+                            className="score-bullet-pill"
+                            onMouseEnter={e => {
+                              if (isLocked && !isAdmin) return;
+                              if (!isSelected) {
+                                e.currentTarget.style.borderColor = `${group.color}60`;
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                              }
+                            }}
+                            onMouseLeave={e => {
+                              if (!isSelected) {
+                                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                                e.currentTarget.style.background = 'rgba(5, 7, 18, 0.4)';
+                              }
+                            }}
+                          >
+                            <span style={{ 
+                              fontSize: '13px', 
+                              fontWeight: 950, 
+                              color: isSelected ? '#fff' : '#cbd5e1',
+                              fontFamily: 'monospace'
+                            }}>
+                              {scoreVal}
+                            </span>
+                            <span style={{ 
+                              fontSize: '8px', 
+                              color: isSelected ? '#0f172a' : '#64748b', 
+                              background: isSelected ? group.color : 'rgba(255,255,255,0.03)',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              marginTop: 3, 
+                              fontWeight: 800,
+                              border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.05)'
+                            }}>
+                              {count > 0 ? `${count}n (${percent}%)` : '0'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Kết Quả Điểm Phạt & Tỉ Số Thực Tế */}
+        {actualResult && (() => {
+          const isMainCorrect = prediction === actualResult;
+          const actualScore = getActualScore(match.score);
+          const isScoreCorrect = predictionScore && actualScore && isScorePredictionCorrect(predictionScore, actualScore);
+
+          return (
+            <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <Text style={{ fontSize: '11px', color: '#64748b', marginRight: 6 }}>Kết quả:</Text>
+                  <Tag color="cyan" style={{ fontSize: '11px', fontWeight: 'bold', border: 'none', background: 'rgba(0, 240, 255, 0.1)', color: '#00f0ff' }}>
+                    {getKnockoutResultText()}
+                  </Tag>
+                </div>
+                {actualScore && (
+                  <Tag color="gold" style={{ fontSize: '11px', fontWeight: 'bold', border: 'none', background: 'rgba(255, 221, 0, 0.1)', color: '#ffdd00' }}>
+                    Tỷ số chính thức: {actualScore}
+                  </Tag>
+                )}
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                {prediction ? (
+                  isMainCorrect ? (
+                    <Tag color="green" icon={<CheckCircleFilled />} style={{ fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(82, 196, 26, 0.12)', color: '#52c41a' }}>
+                      Đoán kết quả đúng (+0đ Phạt)
+                    </Tag>
+                  ) : (
+                    <Tag color="red" icon={<CloseCircleFilled />} style={{ fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(255, 77, 79, 0.12)', color: '#ff4d4f' }}>
+                      Đoán kết quả sai (+{penaltyVal}đ Phạt)
+                    </Tag>
+                  )
+                ) : (
+                  <Tag color="warning" icon={<CloseCircleFilled />} style={{ fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(250, 173, 20, 0.12)', color: '#faad14' }}>
+                    Không đoán kết quả (+{penaltyVal}đ Phạt)
+                  </Tag>
+                )}
+
+                {predictionScore && actualScore && (
+                  isScoreCorrect ? (
+                    <Tag color="success" icon={<CheckCircleFilled />} style={{ fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(0, 255, 157, 0.15)', color: '#00ff9d', boxShadow: '0 0 10px rgba(0, 255, 157, 0.3)' }}>
+                      Trúng tỉ số! Thưởng trừ -{penaltyVal}đ Phạt
+                    </Tag>
+                  ) : (
+                    <Tag color="default" style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '11px', margin: 0, border: 'none', background: 'rgba(255,255,255,0.04)' }}>
+                      Đoán tỉ số {predictionScore} (Thực tế: {actualScore}) (+0đ Phạt)
+                    </Tag>
+                  )
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Admin Panel */}
+        {isAdmin && (
+          <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px dashed #d4b106', background: 'rgba(212, 177, 6, 0.03)', padding: 12, borderRadius: 12 }}>
+            <Text strong style={{ fontSize: '10px', color: '#d4b106', display: 'block', marginBottom: 8 }}>
+              ⚙️ CẬP NHẬT KẾT QUẢ (ADMIN):
+            </Text>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <Button size="small" type={actualResult === 'A' ? 'primary' : 'default'} onClick={() => onSetResult(match.id, 'A')} style={{ flex: 1, fontSize: 10, height: 26 }}>A Thắng</Button>
+              <Button size="small" type={actualResult === 'D' ? 'primary' : 'default'} onClick={() => onSetResult(match.id, 'D')} style={{ flex: 1, fontSize: 10, height: 26 }}>Hòa</Button>
+              <Button size="small" type={actualResult === 'B' ? 'primary' : 'default'} onClick={() => onSetResult(match.id, 'B')} style={{ flex: 1, fontSize: 10, height: 26 }}>B Thắng</Button>
+              <Button size="small" danger onClick={() => onSetResult(match.id, null)} style={{ fontSize: 10, height: 26 }} icon={<RetweetOutlined />} title="Reset" />
+            </div>
+            
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Input
+                size="small"
+                placeholder={match.teamAName}
+                defaultValue={match.teamAInfo ? '' : match.teamAName}
+                onChange={(e) => onSetResult(match.id, 'editTeams', { teamAName: e.target.value })}
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', fontSize: 10 }}
+                addonBefore={<EditOutlined style={{ fontSize: 9 }} />}
+              />
+              <Input
+                size="small"
+                placeholder={match.teamBName}
+                defaultValue={match.teamBInfo ? '' : match.teamBName}
+                onChange={(e) => onSetResult(match.id, 'editTeams', { teamBName: e.target.value })}
+                style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', fontSize: 10 }}
+                addonBefore={<EditOutlined style={{ fontSize: 9 }} />}
+              />
+            </div>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  // ============================================================
+  // NORMAL LAYOUT (VÒNG BẢNG, VÒNG 32, VÒNG 16, TỨ KẾT)
+  // ============================================================
   return (
     <Card
       id={`match-card-${match.id}`}
@@ -881,6 +1454,16 @@ function PredictionAnalysisModal({ open, onClose, match, players, teamAName, tea
                                       </Avatar>
                                       <span style={{ color: '#cbd5e1', fontSize: 10, fontWeight: 600 }}>
                                         {pid}
+                                        {(() => {
+                                          if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+                                            const pObj = players.find(p => p.id === pid);
+                                            const pScore = pObj?.predictions?.[`${match.id}_score`];
+                                            if (pScore) {
+                                              return <span style={{ color: '#fbbf24', marginLeft: 4 }}>({pScore})</span>;
+                                            }
+                                          }
+                                          return null;
+                                        })()}
                                       </span>
                                     </div>
                                   </Tooltip>

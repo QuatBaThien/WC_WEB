@@ -5,7 +5,7 @@ import {
   CheckCircleOutlined, CloseCircleOutlined,
   CopyOutlined, CheckOutlined, CrownOutlined
 } from '@ant-design/icons';
-import { TEAMS, CHAMPION_OPTIONS } from '../data/wcData';
+import { TEAMS, CHAMPION_OPTIONS, getActualScore, isScorePredictionCorrect } from '../data/wcData';
 
 const { Text, Title } = Typography;
 
@@ -164,6 +164,20 @@ export default function Leaderboard({
         }
       } else {
         if (match.result) { incorrectCount++; penaltyPoints += stagePenalty; }
+      }
+
+      if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+        const scoreKey = `${match.id}_score`;
+        const predScore = player.predictions[scoreKey];
+        if (predScore && match.result && match.score) {
+          const actualScore = getActualScore(match.score);
+          if (actualScore) {
+            const isScoreCorrect = isScorePredictionCorrect(predScore, actualScore);
+            if (isScoreCorrect) {
+              penaltyPoints -= stagePenalty;
+            }
+          }
+        }
       }
     });
 
@@ -587,17 +601,48 @@ export default function Leaderboard({
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: 4 }}>
-                      <Text style={{ fontSize: 10, color: '#94a3b8' }}>
-                        Dự đoán:{' '}
-                        <Text strong style={{ color: pred === 'A' ? '#00f5a0' : pred === 'D' ? '#ffd700' : pred === 'B' ? '#38bdf8' : '#f43f5e' }}>
-                          {pred === 'A' ? 'Thắng A' : pred === 'D' ? 'Hòa' : pred === 'B' ? 'Thắng B' : 'Chưa đoán'}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Text style={{ fontSize: 10, color: '#94a3b8' }}>
+                          Dự đoán:{' '}
+                          <Text strong style={{ color: pred === 'A' ? '#00f5a0' : pred === 'D' ? '#ffd700' : pred === 'B' ? '#38bdf8' : '#f43f5e' }}>
+                            {pred === 'A' ? 'Thắng A' : pred === 'D' ? 'Hòa' : pred === 'B' ? 'Thắng B' : 'Chưa đoán'}
+                          </Text>
                         </Text>
-                      </Text>
+                        {(match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') && (() => {
+                          const pScore = playerRecord.predictions[`${match.id}_score`];
+                          return (
+                            <Text style={{ fontSize: 10, color: '#94a3b8' }}>
+                              Tỉ số:{' '}
+                              <Text strong style={{ color: '#fbbf24' }}>
+                                {pScore || 'Chưa đoán'}
+                              </Text>
+                            </Text>
+                          );
+                        })()}
+                      </div>
                       {match.result ? (
-                        <Text style={{ fontSize: 10, color: isCorrect ? '#00f5a0' : '#ff4d4f', fontWeight: 'bold', marginLeft: 5 }}>
-                          {isCorrect ? <CheckCircleOutlined /> : <CloseCircleOutlined />}{' '}
-                          {match.result === 'A' ? 'A thắng' : match.result === 'D' ? 'Hòa' : 'B thắng'}
-                        </Text>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 10, color: isCorrect ? '#00f5a0' : '#ff4d4f', fontWeight: 'bold' }}>
+                            {isCorrect ? <CheckCircleOutlined /> : <CloseCircleOutlined />}{' '}
+                            {match.result === 'A' ? 'A thắng' : match.result === 'D' ? 'Hòa' : 'B thắng'}
+                          </Text>
+                          {(match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') && (() => {
+                            const pScore = playerRecord.predictions[`${match.id}_score`];
+                            if (pScore && match.score) {
+                              const actualScore = getActualScore(match.score);
+                              const isScoreCorrect = isScorePredictionCorrect(pScore, actualScore);
+                              const stagePenalty = (penaltiesConfig && penaltiesConfig[match.stage] !== undefined)
+                                ? Number(penaltiesConfig[match.stage])
+                                : 10;
+                              return (
+                                <Text style={{ fontSize: 9, color: isScoreCorrect ? '#00f5a0' : '#858d99', fontWeight: isScoreCorrect ? 'bold' : 'normal' }}>
+                                  {isScoreCorrect ? `Trúng tỉ số (-${stagePenalty}đ)` : 'Sai tỉ số (+0đ)'}
+                                </Text>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       ) : (
                         <Text style={{ fontSize: 10, color: '#d4b106', marginLeft: 5 }}>Chưa đá</Text>
                       )}

@@ -43,6 +43,16 @@ const alignFollowersPredictions = (playersList, matchesList, locks) => {
         } else {
           delete alignedPreds[match.id];
         }
+
+        if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+          const scoreKey = `${match.id}_score`;
+          const leaderScorePred = leader.predictions[scoreKey];
+          if (leaderScorePred !== undefined) {
+            alignedPreds[scoreKey] = leaderScorePred;
+          } else {
+            delete alignedPreds[scoreKey];
+          }
+        }
       }
     });
 
@@ -646,9 +656,10 @@ export default function App() {
 
       const updatedPlayers = players.map(p => {
         if (p.id === currentUserId) {
+          const isScorePred = typeof matchId === 'string' && matchId.endsWith('_score');
           const preds = {
             ...p.predictions,
-            [matchId]: p.predictions[matchId] === choice ? null : choice
+            [matchId]: isScorePred ? choice : (p.predictions[matchId] === choice ? null : choice)
           };
           if (shouldUnfollow) {
             delete preds.following;
@@ -793,6 +804,16 @@ export default function App() {
                   updatedFollowerPreds[match.id] = leaderPred;
                 } else {
                   delete updatedFollowerPreds[match.id];
+                }
+
+                if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+                  const scoreKey = `${match.id}_score`;
+                  const leaderScorePred = activePlayer.predictions[scoreKey];
+                  if (leaderScorePred !== undefined) {
+                    updatedFollowerPreds[scoreKey] = leaderScorePred;
+                  } else {
+                    delete updatedFollowerPreds[scoreKey];
+                  }
                 }
               }
             });
@@ -1091,6 +1112,16 @@ export default function App() {
             if (targetPred) {
               newPredictions[match.id] = targetPred;
             }
+
+            if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+              const scoreKey = `${match.id}_score`;
+              const targetScorePred = targetPlayer.predictions[scoreKey];
+              if (targetScorePred) {
+                newPredictions[scoreKey] = targetScorePred;
+              } else {
+                delete newPredictions[scoreKey];
+              }
+            }
           }
         });
 
@@ -1184,6 +1215,16 @@ export default function App() {
           newPredictions[match.id] = leaderPred;
         } else {
           delete newPredictions[match.id];
+        }
+
+        if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+          const scoreKey = `${match.id}_score`;
+          const leaderScorePred = leader.predictions[scoreKey];
+          if (leaderScorePred !== undefined) {
+            newPredictions[scoreKey] = leaderScorePred;
+          } else {
+            delete newPredictions[scoreKey];
+          }
         }
       }
     });
@@ -1518,12 +1559,13 @@ export default function App() {
                         <Text style={{ color: '#64748b' }}>Không tìm thấy trận đấu nào thỏa mãn bộ lọc.</Text>
                       </div>
                     ) : (
-                      <div className="matches-grid">
+                      <div className={activeTab === 'sf' || activeTab === 'finals' ? "matches-list-vertical" : "matches-grid"}>
                         {filteredMatches.map(match => (
                           <MatchCard
                             key={match.id}
                             match={match}
                             prediction={currentPredictions[match.id] || null}
+                            predictionScore={currentPredictions[match.id + '_score'] || null}
                             onPredict={handlePredict}
                             isAdmin={isAdmin}
                             onSetResult={handleSetResult}
