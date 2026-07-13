@@ -476,7 +476,7 @@ export default function MatchCard({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text strong style={{ fontSize: '11px', color: '#64748b', letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                2. Dự đoán tỉ số (Đoán đúng thưởng điểm, sai không phạt):
+                2. Dự đoán tỉ số trong 90p (Đoán đúng thưởng điểm, sai không phạt):
               </Text>
               {predictionScore && !isLocked && (
                 <button
@@ -496,6 +496,23 @@ export default function MatchCard({
                 </button>
               )}
             </div>
+
+            {match.stage === 'sf' && (
+              <div style={{ 
+                background: 'rgba(251, 191, 36, 0.05)', 
+                border: '1px solid rgba(251, 191, 36, 0.15)', 
+                borderRadius: 12, 
+                padding: '8px 16px', 
+                marginBottom: 12,
+                fontSize: '10px',
+                color: '#fbbf24',
+                fontWeight: 700,
+                textAlign: 'center',
+                boxShadow: '0 0 10px rgba(251, 191, 36, 0.03)'
+              }}>
+                👑 ĐỘC ĐẮC: Đoán trúng tỉ số độc quyền (chỉ duy nhất 1 người chọn) nhận thêm +50% điểm phạt (+30đ)!
+              </div>
+            )}
 
             <div style={{ 
               background: 'rgba(5, 7, 18, 0.4)', 

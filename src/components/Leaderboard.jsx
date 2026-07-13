@@ -174,7 +174,15 @@ export default function Leaderboard({
           if (actualScore) {
             const isScoreCorrect = isScorePredictionCorrect(predScore, actualScore);
             if (isScoreCorrect) {
-              const scoreReward = getScorePredictionReward(predScore, match.stage, stagePenalty);
+              let scoreReward = getScorePredictionReward(predScore, match.stage, stagePenalty);
+              
+              // Jackpot check (sole predictor of this correct score)
+              const activePlayers = players.filter(p => p.id !== 'ADMIN_WC' && p.predictions);
+              const totalPickersOfThisScore = activePlayers.filter(p => p.predictions[scoreKey] === predScore).length;
+              if (totalPickersOfThisScore === 1) {
+                scoreReward += Math.round(stagePenalty * 0.5);
+              }
+              
               penaltyPoints -= scoreReward;
             }
           }
@@ -635,10 +643,19 @@ export default function Leaderboard({
                               const stagePenalty = (penaltiesConfig && penaltiesConfig[match.stage] !== undefined)
                                 ? Number(penaltiesConfig[match.stage])
                                 : 10;
-                              const scoreReward = getScorePredictionReward(pScore, match.stage, stagePenalty);
+                              let scoreReward = getScorePredictionReward(pScore, match.stage, stagePenalty);
+                              let isJackpot = false;
+                              if (isScoreCorrect) {
+                                const activePlayers = players.filter(p => p.id !== 'ADMIN_WC' && p.predictions);
+                                const totalPickers = activePlayers.filter(p => p.predictions[`${match.id}_score`] === pScore).length;
+                                if (totalPickers === 1) {
+                                  isJackpot = true;
+                                  scoreReward += Math.round(stagePenalty * 0.5);
+                                }
+                              }
                               return (
                                 <Text style={{ fontSize: 9, color: isScoreCorrect ? '#00f5a0' : '#858d99', fontWeight: isScoreCorrect ? 'bold' : 'normal' }}>
-                                  {isScoreCorrect ? `Trúng tỉ số (-${scoreReward}đ)` : 'Sai tỉ số (+0đ)'}
+                                  {isScoreCorrect ? (isJackpot ? `Độc đắc tỉ số! (-${scoreReward}đ)` : `Trúng tỉ số (-${scoreReward}đ)`) : 'Sai tỉ số (+0đ)'}
                                 </Text>
                               );
                             }
