@@ -232,6 +232,20 @@ export default function MatchCard({
           </div>
         </div>
 
+        <PredictionAnalysisModal
+          open={showAnalysis}
+          onClose={() => setShowAnalysis(false)}
+          match={match}
+          players={players || []}
+          teamAName={teamAName}
+          teamBName={teamBName}
+          flagA={flagA}
+          flagB={flagB}
+          teamAInfo={teamAInfo}
+          teamBInfo={teamBInfo}
+          actualResult={actualResult}
+        />
+
         {/* Stadium Scoreboard Matchup */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 0', position: 'relative' }}>
           {/* Team A Neon Panel */}
