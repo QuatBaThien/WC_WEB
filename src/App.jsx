@@ -1246,6 +1246,59 @@ export default function App() {
       });
     }
 
+    // --- Tìm và cập nhật người theo dõi ---
+    const followers = players.filter(p => p.predictions?.following === currentUserId);
+    const updatedFollowers = [];
+    
+    for (const follower of followers) {
+      const updatedFollowerPreds = { ...follower.predictions };
+      updatedFollowerPreds.following = targetLeaderId; // Chuyển sang follow Minh Chủ mới
+
+      // Sao chép dự đoán chưa khóa của Minh Chủ mới
+      matches.forEach(match => {
+        let locked = lockedMatches[match.id] !== undefined 
+          ? lockedMatches[match.id] 
+          : new Date() > new Date(match.date);
+
+        if (!locked) {
+          const leaderPred = leader.predictions[match.id];
+          if (leaderPred !== undefined) {
+            updatedFollowerPreds[match.id] = leaderPred;
+          } else {
+            delete updatedFollowerPreds[match.id];
+          }
+
+          if (match.stage === 'sf' || match.stage === 'third_place' || match.stage === 'final') {
+            const scoreKey = `${match.id}_score`;
+            const leaderScorePred = leader.predictions[scoreKey];
+            if (leaderScorePred !== undefined) {
+              updatedFollowerPreds[scoreKey] = leaderScorePred;
+            } else {
+              delete updatedFollowerPreds[scoreKey];
+            }
+          }
+        }
+      });
+
+      // Sao chép dự đoán vô địch chưa khóa
+      if (!champLocked) {
+        CHAMPION_OPTIONS.forEach(opt => {
+          const key = `CHAMP_${opt.code}`;
+          const leaderPred = leader.predictions[key];
+          if (leaderPred !== undefined) {
+            updatedFollowerPreds[key] = leaderPred;
+          } else {
+            delete updatedFollowerPreds[key];
+          }
+        });
+      }
+
+      updatedFollowers.push({
+        id: follower.id,
+        predictions: updatedFollowerPreds
+      });
+    }
+
     // Update state
     const updatedPlayers = players.map(p => {
       if (p.id === currentUserId) {
@@ -1253,6 +1306,15 @@ export default function App() {
           ...p,
           predictions: newPredictions,
           ip: userIp,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+      const updatedFollower = updatedFollowers.find(uf => uf.id === p.id);
+      if (updatedFollower) {
+        return {
+          ...p,
+          predictions: updatedFollower.predictions,
+          ip: 'System-Sync',
           lastUpdated: new Date().toISOString()
         };
       }
@@ -1271,14 +1333,29 @@ export default function App() {
       predictions: newPredictions,
       timestamp: new Date().toISOString()
     });
-    setSaveLoading(false);
 
     if (success) {
-      alert(`Đã chọn ${targetLeaderId} làm Minh Chủ và tự động đồng bộ tất cả dự đoán chưa đá thành công!`);
+      // Save all updated followers to sheet
+      for (const uf of updatedFollowers) {
+        await rawPostToSheet({
+          action: 'submitPrediction',
+          ma_user: uf.id,
+          ip: 'System-Sync',
+          predictions: uf.predictions,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      if (followers.length > 0) {
+        alert(`Đã chọn ${targetLeaderId} làm Minh Chủ và tự động chuyển hướng follow + đồng bộ dự đoán của ${followers.length} người theo dõi bạn sang ${targetLeaderId} thành công!`);
+      } else {
+        alert(`Đã chọn ${targetLeaderId} làm Minh Chủ và tự động đồng bộ tất cả dự đoán chưa đá thành công!`);
+      }
       syncWithSheet();
     } else {
       alert('Lỗi lưu cấu hình Minh Chủ lên Google Sheets. Vui lòng thử lại!');
     }
+    setSaveLoading(false);
   };
 
   // Các tab antd
